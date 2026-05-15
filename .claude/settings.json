@@ -1,0 +1,31 @@
+{
+  "env": {
+    "ENABLE_LSP_TOOL": "1"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/review-stop-checks.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run lint"
+          },
+          {
+            "type": "command",
+            "command": "npm run typecheck"
+          }
+        ]
+      }
+    ]
+  }
+}
