@@ -14,9 +14,12 @@
 
 - Q: How should the app gate access in v1? → A: Single shared secret (env-set token) required for every API call.
 - Q: Does v1 support concurrent isolated sessions? → A: Multiple concurrent sessions, each isolated by session handle (no cross-session document or history access).
-- Q: When must a session's indexed chunks and history be purged? → A: On explicit "end session" action OR after a configurable idle TTL (default 24h), whichever comes first.
+- Q: When must a session's indexed chunks and history be purged? → A: Only when the user explicitly ends the session. (Superseded — see "What event resets the idle timer for a session?" below.)
 - Q: How aggressively must the server auto-retry failing LLM/embedding calls? → A: Bounded retry — up to 2 retries on transient errors (5xx, network, timeout) with exponential backoff, total budget ≤ 5 s; then surface the error.
 - Q: What operational telemetry is required in v1? → A: Structured logs + per-request timing metrics (ingest duration, retrieval latency, time-to-first-token, total stream duration) exposed at a local endpoint; no external tracing collector; secrets never logged.
+- Q: Must answers include citations pointing back to source chunks? → A: Yes — citations returned as structured metadata (chunk IDs + page/section locators) alongside the streamed answer; UI shows inline references.
+- Q: What event resets the idle timer for a session? → A: No idle TTL. Sessions are purged ONLY when the user explicitly ends them; the 24-hour TTL introduced earlier is removed.
+- Q: Does v1 enforce a per-session request limit? → A: No per-session limits in v1. Concurrency caps and rate limiting are deferred to a future release.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -103,6 +106,7 @@ A reviewer (engineering lead, auditor, future maintainer) needs to understand *w
 - **FR-005**: System MUST accept natural-language questions tied to a session and a previously uploaded document.
 - **FR-006**: System MUST stream answer tokens to the user progressively, with the first visible token arriving within 2 seconds (p95) under normal load.
 - **FR-007**: System MUST ground answers in the content of the uploaded document(s) and MUST explicitly state when the document does not contain the requested information rather than fabricating one.
+- **FR-007a**: System MUST return source citations alongside every answer as structured metadata, including at minimum the chunk identifier and a human-readable locator (page number for PDFs, section/heading for DOCX) for each retrieved chunk that contributed to the answer. Citation data MUST be delivered in a way that lets the UI render inline references that the user can click to see the supporting passage. Citations MUST be returned even when the answer is "not found" (in which case the citation list MAY be empty).
 - **FR-008**: System MUST retain conversation turns (user questions and assistant answers) for the lifetime of a session and MUST include prior turns when answering follow-up questions.
 - **FR-009**: System MUST expose a way to fetch the ordered conversation history for a given session.
 - **FR-010**: System MUST allow swapping the AI text-generation provider and the embedding provider via configuration only (no source code edits, no rebuild beyond restart).
@@ -114,7 +118,7 @@ A reviewer (engineering lead, auditor, future maintainer) needs to understand *w
 - **FR-016**: System MUST clean up temporary files created during upload after ingestion completes (or document its retention behavior explicitly).
 - **FR-017**: System MUST require a shared access token, loaded from environment configuration, on every API request. Requests without the token (or with an incorrect token) MUST be rejected with an authentication error and MUST NOT trigger uploads, questions, or history reads. The token value MUST NOT be logged or echoed in error responses.
 - **FR-018**: System MUST support multiple concurrent sessions. Each session MUST be isolated by its session handle: a question asked in session A MUST NOT retrieve chunks from documents uploaded in session B, and conversation history of one session MUST NOT be readable from another. Session handles MUST be unguessable (cryptographically random) so they cannot be enumerated.
-- **FR-019**: System MUST purge a session's indexed chunks, vector entries, and conversation history when (a) the user explicitly ends the session, or (b) the session has been idle longer than a configurable TTL (default 24 hours), whichever occurs first. Purge MUST remove the data from the vector store and from any on-disk caches associated with the session. The TTL MUST be configurable via environment variable without code changes.
+- **FR-019**: System MUST purge a session's indexed chunks, vector entries, and conversation history ONLY when the user explicitly ends the session. No automatic time-based expiry applies — sessions persist for the lifetime of the server process unless explicitly ended. Purge MUST remove the data from the vector store and from any on-disk caches associated with the session.
 - **FR-020**: System MUST expose a way for the user (or UI) to explicitly end a session, after which that session's handle MUST NO LONGER grant access to any prior documents or history.
 - **FR-021**: System MUST automatically retry transient AI provider failures (network errors, timeouts, HTTP 5xx, HTTP 429) up to 2 times using exponential backoff, with a total retry budget of 5 seconds per user-facing request. Non-transient failures (other 4xx) MUST be surfaced immediately without retry. After the retry budget is exhausted, the failure MUST be surfaced to the user as a recoverable error with a retry affordance, and the session MUST remain valid.
 - **FR-022**: System MUST emit structured logs for every request (correlation/request ID, timestamp, level, event, session handle hash — never the raw handle, never secrets). Logs MUST NOT contain API keys, raw session handles, raw question/answer text, or document contents.
@@ -123,7 +127,7 @@ A reviewer (engineering lead, auditor, future maintainer) needs to understand *w
 ### Key Entities
 
 - **Document**: A user-uploaded file (PDF or DOCX). Has a stable handle, an extracted textual representation, and an indexed retrievable form. Belongs implicitly to the session that uploaded it.
-- **Chunk**: A retrievable slice of a document's text, sized to fit retrieval context. Carries enough surrounding context to be self-explanatory when surfaced to the AI.
+- **Chunk**: A retrievable slice of a document's text, sized to fit retrieval context. Carries enough surrounding context to be self-explanatory when surfaced to the AI. Each chunk MUST carry a stable identifier and a human-readable locator (page number for PDFs, section/heading for DOCX) so it can be cited back to the user.
 - **Session**: A conversational thread identified by a session handle. Owns an ordered list of conversation turns and (transitively) the documents asked about within it.
 - **Conversation Turn**: A single user question or assistant answer within a session, ordered chronologically.
 - **Provider Configuration**: The named selection of AI generation provider and embedding provider currently in effect, plus their credentials. Changes require a restart but no code change.
@@ -147,8 +151,9 @@ A reviewer (engineering lead, auditor, future maintainer) needs to understand *w
 - Primary user is an internal reviewer (e.g. legal-tech analyst). Public, anonymous internet exposure is out of scope for the initial release; basic single-user usage on a trusted machine or internal network is assumed. Access is gated by a single shared secret (env-set token) on every API call; per-user accounts and SSO are deferred.
 - Default upload cap: 25 MB per file. One document per session is sufficient for the initial release; multi-document sessions are a future extension.
 - Sessions are ephemeral and identified by an unguessable, cryptographically random session handle; persistent user accounts and authentication are out of scope for the initial release. Multiple concurrent sessions are supported and MUST be isolated from each other (no cross-session document or history access).
-- Conversation history is retained per session until the session is explicitly ended OR has been idle longer than the configurable TTL (default 24 hours), whichever comes first. Durable persistence of conversations across server restarts is a future extension.
+- Conversation history is retained per session until the user explicitly ends the session. No idle/time-based expiry applies; sessions persist for the lifetime of the running server process unless ended by the user. Durable persistence of conversations across server restarts is a future extension.
 - Only PDF and DOCX are supported in the initial release. OCR for scan-only PDFs is out of scope (the system will report that no text could be extracted).
 - System runs on a single developer-class machine; horizontal scale and multi-tenant isolation are out of scope for this release.
+- No per-session concurrency caps or rate limits are enforced in v1. Throttling, request quotas, and circuit breakers against runaway clients are deferred; the deployment assumption is a trusted user base where abuse is unlikely.
 - ADRs are authored using the project's `adr-writer` agent and stored under a `docs/adr/` directory using a consistent, lightweight template.
 - The retrieval pipeline is bespoke (deliberately not built on a higher-level orchestration framework) to keep the codebase auditable for reviewers; this is itself a tradeoff that will be recorded as an ADR.
