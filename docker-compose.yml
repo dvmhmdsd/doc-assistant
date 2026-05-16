@@ -23,7 +23,10 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      # Host port is env-overridable so unrelated daemons (e.g., a k3d
+      # cluster on 8000) don't block bring-up. Container always serves
+      # on 8000 internally.
+      - "${APP_HOST_PORT:-8000}:8000"
     volumes:
       # Persist the file-backed vector store across container restarts.
       - chroma-data:/app/chroma_data
