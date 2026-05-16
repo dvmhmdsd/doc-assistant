@@ -1,0 +1,66 @@
+# docker-compose for the doc-assistant.
+#
+# Production-style default service ("app") builds the multi-stage root
+# Dockerfile: FE compiled into static assets, served by FastAPI under "/".
+# This is the canonical run path:
+#   docker compose up --build
+#
+# Optional dev profile gives Vite hot-reload via a separate `frontend-dev`
+# service that talks to the backend over the compose network. Enable with:
+#   docker compose --profile dev up
+#
+# Tests run inside the production image without needing host Python:
+#   docker compose run --rm app pytest
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: doc-assistant:dev
+    container_name: doc-assistant-app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the file-backed vector store across container restarts.
+      - chroma-data:/app/chroma_data
+      # Ephemeral upload spool (still cleaned by the app after ingestion).
+      - upload-tmp:/app/uploads_tmp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  # Frontend hot-reload dev service. Off by default; enable with `--profile dev`.
+  frontend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    image: doc-assistant-frontend:dev
+    container_name: doc-assistant-frontend-dev
+    environment:
+      # Vite reads this to proxy /api → backend during dev. Mirror it in
+      # vite.config.ts when the SPA is scaffolded (feature 002).
+      VITE_API_BASE_URL: "http://app:8000"
+    ports:
+      - "5173:5173"
+    volumes:
+      # Bind-mount source for hot-reload; isolate node_modules in a named
+      # volume so the container's installed deps aren't shadowed by the host.
+      - ./frontend:/frontend
+      - frontend-node-modules:/frontend/node_modules
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  chroma-data:
+  upload-tmp:
+  frontend-node-modules:

@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1.6
+#
+# Frontend dev container — Vite hot-reload only. Not used by the production
+# `app` service in docker-compose.yml. Brought up via the `dev` compose
+# profile:
+#   docker compose --profile dev up
+#
+# Production builds happen inside the multi-stage root Dockerfile (frontend-
+# builder stage). This file exists only to give developers a hot-reload loop
+# without installing Node locally.
+
+FROM node:20-bookworm-slim
+
+WORKDIR /frontend
+
+# Cache deps.
+COPY package.json package-lock.json* ./
+RUN npm ci --no-audit --no-fund
+
+# Source mounted at runtime via the compose volume; copy as a fallback so the
+# image builds even when run without a bind mount.
+COPY . .
+
+EXPOSE 5173
+
+# Vite must bind to 0.0.0.0 to be reachable from the host.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
