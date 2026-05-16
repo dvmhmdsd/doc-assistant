@@ -29,11 +29,11 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 **Purpose**: Repo scaffolding, dependencies, lint/type-check, container files.
 
-- [ ] T001 Create the `src/` and `tests/` package tree exactly as listed in [plan.md §Project Structure](./plan.md) (`src/{api,parsers,chunker,embeddings,vector_store,llm,services,history,observability}/__init__.py` and matching `tests/{contract,integration,unit}/__init__.py`); empty `src/main.py` and `src/config.py` placeholders.
-- [ ] T002 Author `pyproject.toml` at repo root with runtime deps (`fastapi`, `uvicorn[standard]`, `pydantic>=2`, `pydantic-settings`, `python-multipart`, `pymupdf`, `python-docx`, `chromadb`, `sentence-transformers`, `openai`, `anthropic`, `tenacity`, `structlog`, `prometheus-client`, `tiktoken`) and dev deps (`pytest`, `pytest-asyncio`, `httpx`, `respx`, `pytest-cov`, `ruff`, `mypy`).
-- [ ] T003 [P] Configure linting and type-checking in `pyproject.toml`: ruff (line length 100, select `E,F,I,B,UP`), mypy (`strict = true`, exclude `tests/`), pytest (`asyncio_mode = "auto"`, `testpaths = ["tests"]`).
-- [ ] T004 [P] Create `.env.example` at repo root mirroring every field of `ProviderConfiguration` in [data-model.md](./data-model.md) with documented defaults.
-- [ ] T005 Author `Dockerfile` (multi-stage: Node build for `frontend/dist`, then `python:3.11-slim` runtime serving FastAPI on port 8000) and `docker-compose.yml` (single `app` service, mounts `./chroma_data`, reads `.env`, exposes 8000). `docker compose up` is the ONLY supported run path; the image MUST also include the dev dependencies needed to run the test suite via `docker compose run --rm app pytest`. Do NOT add any "run locally with uvicorn" instructions to README / quickstart.
+- [x] T001 Create the `src/` and `tests/` package tree exactly as listed in [plan.md §Project Structure](./plan.md) (`src/{api,parsers,chunker,embeddings,vector_store,llm,services,history,observability}/__init__.py` and matching `tests/{contract,integration,unit}/__init__.py`); empty `src/main.py` and `src/config.py` placeholders.
+- [x] T002 Author `pyproject.toml` at repo root with runtime deps (`fastapi`, `uvicorn[standard]`, `pydantic>=2`, `pydantic-settings`, `python-multipart`, `pymupdf`, `python-docx`, `chromadb`, `sentence-transformers`, `openai`, `anthropic`, `tenacity`, `structlog`, `prometheus-client`, `tiktoken`) and dev deps (`pytest`, `pytest-asyncio`, `httpx`, `respx`, `pytest-cov`, `ruff`, `mypy`).
+- [x] T003 [P] Configure linting and type-checking in `pyproject.toml`: ruff (line length 100, select `E,F,I,B,UP`), mypy (`strict = true`, exclude `tests/`), pytest (`asyncio_mode = "auto"`, `testpaths = ["tests"]`).
+- [x] T004 [P] Create `.env.example` at repo root mirroring every field of `ProviderConfiguration` in [data-model.md](./data-model.md) with documented defaults.
+- [x] T005 Author `Dockerfile` (multi-stage: Node build for `frontend/dist`, then `python:3.11-slim` runtime serving FastAPI on port 8000) and `docker-compose.yml` (single `app` service, mounts `./chroma_data`, reads `.env`, exposes 8000). `docker compose up` is the ONLY supported run path; the image MUST also include the dev dependencies needed to run the test suite via `docker compose run --rm app pytest`. Do NOT add any "run locally with uvicorn" instructions to README / quickstart.
 
 ---
 
@@ -43,15 +43,15 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 **⚠️ CRITICAL**: No user-story work begins until this phase is complete.
 
-- [ ] T006 Implement `src/config.py` as a `pydantic-settings` `BaseSettings` reading every env var from `.env.example`; refuse to construct when `APP_SHARED_TOKEN` is empty; expose a cached `get_settings()` factory.
-- [ ] T007 [P] Implement `src/observability/logging.py`: structlog setup emitting JSON lines, automatic `request_id` injection, processor that redacts known secret keys (`*api_key*`, `authorization`, `app_shared_token`).
-- [ ] T008 [P] Implement `src/observability/metrics.py`: Prometheus registry with histograms `doc_assistant_ingest_seconds`, `doc_assistant_retrieval_seconds`, `doc_assistant_time_to_first_token_seconds`, `doc_assistant_stream_total_seconds`, and counter `doc_assistant_provider_retry_total{provider}`.
-- [ ] T009 [P] Implement `src/api/errors.py`: typed `AppError` hierarchy + a FastAPI exception handler that renders the OpenAPI `Error` schema; ensure no stack traces leak in bodies.
-- [ ] T010 Implement `src/api/deps.py`: `require_bearer_token` (uses `secrets.compare_digest` against `settings.shared_token`), `request_id_dep` (UUID per request, stored in contextvar), `get_session_registry`.
-- [ ] T011 Implement `src/api/app.py`: `create_app()` factory that wires the exception handler from T009, adds a middleware applying `request_id` + logging, mounts `/healthz` (unauthenticated) and the routes registered later.
-- [ ] T012 [P] Implement `src/api/routes/metrics.py`: `/metrics` route (unauthenticated, loopback-bind in production) returning `generate_latest(REGISTRY)` with `text/plain; version=0.0.4` content type.
-- [ ] T013 [P] Write `tests/unit/test_config.py` exercising required-vs-optional env validation (e.g., missing `APP_SHARED_TOKEN` → server refuses to start; selecting `LLM_PROVIDER=openai` without `OPENAI_API_KEY` raises).
-- [ ] T014 [P] Write `tests/unit/test_auth_gate.py` covering missing header, malformed header, wrong token, correct token — uses `httpx.AsyncClient(app=create_app())` against a stub-protected route.
+- [x] T006 Implement `src/config.py` as a `pydantic-settings` `BaseSettings` reading every env var from `.env.example`; refuse to construct when `APP_SHARED_TOKEN` is empty; expose a cached `get_settings()` factory.
+- [x] T007 [P] Implement `src/observability/logging.py`: structlog setup emitting JSON lines, automatic `request_id` injection, processor that redacts known secret keys (`*api_key*`, `authorization`, `app_shared_token`).
+- [x] T008 [P] Implement `src/observability/metrics.py`: Prometheus registry with histograms `doc_assistant_ingest_seconds`, `doc_assistant_retrieval_seconds`, `doc_assistant_time_to_first_token_seconds`, `doc_assistant_stream_total_seconds`, and counter `doc_assistant_provider_retry_total{provider}`.
+- [x] T009 [P] Implement `src/api/errors.py`: typed `AppError` hierarchy + a FastAPI exception handler that renders the OpenAPI `Error` schema; ensure no stack traces leak in bodies.
+- [x] T010 Implement `src/api/deps.py`: `require_bearer_token` (uses `secrets.compare_digest` against `settings.shared_token`), `request_id_dep` (UUID per request, stored in contextvar), `get_session_registry`.
+- [x] T011 Implement `src/api/app.py`: `create_app()` factory that wires the exception handler from T009, adds a middleware applying `request_id` + logging, mounts `/healthz` (unauthenticated) and the routes registered later.
+- [x] T012 [P] Implement `src/api/routes/metrics.py`: `/metrics` route (unauthenticated, loopback-bind in production) returning `generate_latest(REGISTRY)` with `text/plain; version=0.0.4` content type.
+- [x] T013 [P] Write `tests/unit/test_config.py` exercising required-vs-optional env validation (e.g., missing `APP_SHARED_TOKEN` → server refuses to start; selecting `LLM_PROVIDER=openai` without `OPENAI_API_KEY` raises).
+- [x] T014 [P] Write `tests/unit/test_auth_gate.py` covering missing header, malformed header, wrong token, correct token — uses `httpx.AsyncClient(app=create_app())` against a stub-protected route.
 
 **Checkpoint**: Auth + observability + app factory in place. User-story work can now start in parallel.
 
@@ -81,11 +81,11 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 ### US1 — Interface ABCs (parallel; pure type stubs unblock everything else)
 
-- [ ] T028 [P] [US1] Define `DocumentParser` ABC + `ParsedSegment` dataclass in `src/parsers/base.py` per [contracts/interfaces.md §1](./contracts/interfaces.md).
-- [ ] T029 [P] [US1] Define `EmbeddingProvider` ABC in `src/embeddings/base.py` per [contracts/interfaces.md §3](./contracts/interfaces.md).
-- [ ] T030 [P] [US1] Define `VectorStore` ABC in `src/vector_store/base.py` per [contracts/interfaces.md §4](./contracts/interfaces.md).
-- [ ] T031 [P] [US1] Define `LLMClient` ABC + `ChatMessage` dataclass in `src/llm/base.py` per [contracts/interfaces.md §5](./contracts/interfaces.md).
-- [ ] T032 [P] [US1] Define `ConversationStore` ABC + `ConversationTurn` + `Citation` dataclasses in `src/history/base.py` per [contracts/interfaces.md §6](./contracts/interfaces.md) and [data-model.md](./data-model.md).
+- [x] T028 [P] [US1] Define `DocumentParser` ABC + `ParsedSegment` dataclass in `src/parsers/base.py` per [contracts/interfaces.md §1](./contracts/interfaces.md).
+- [x] T029 [P] [US1] Define `EmbeddingProvider` ABC in `src/embeddings/base.py` per [contracts/interfaces.md §3](./contracts/interfaces.md).
+- [x] T030 [P] [US1] Define `VectorStore` ABC in `src/vector_store/base.py` per [contracts/interfaces.md §4](./contracts/interfaces.md).
+- [x] T031 [P] [US1] Define `LLMClient` ABC + `ChatMessage` dataclass in `src/llm/base.py` per [contracts/interfaces.md §5](./contracts/interfaces.md).
+- [x] T032 [P] [US1] Define `ConversationStore` ABC + `ConversationTurn` + `Citation` dataclasses in `src/history/base.py` per [contracts/interfaces.md §6](./contracts/interfaces.md) and [data-model.md](./data-model.md).
 
 ### US1 — Concrete implementations
 
