@@ -1,0 +1,329 @@
+openapi: 3.1.0
+info:
+  title: Doc Assistant API
+  version: "0.1.0"
+  description: |
+    RAG-powered document Q&A. All endpoints (except `/healthz` and `/metrics`)
+    require a bearer token (`APP_SHARED_TOKEN` on the server).
+servers:
+  - url: http://localhost:8000
+    description: Local dev
+
+security:
+  - BearerToken: []
+
+components:
+  securitySchemes:
+    BearerToken:
+      type: http
+      scheme: bearer
+      description: Single shared secret loaded from `APP_SHARED_TOKEN`.
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - unauthorized
+            - bad_request
+            - unsupported_media_type
+            - payload_too_large
+            - not_found
+            - upstream_error
+            - upstream_unavailable
+            - rate_limited        # placeholder; v1 does not enforce
+            - internal_error
+        message:
+          type: string
+          description: Human-readable, safe to render in UI. Never contains secrets or stack traces.
+        request_id:
+          type: string
+
+    UploadResponse:
+      type: object
+      required: [session_id, document_id, filename, byte_size, chunk_count, ingested_at]
+      properties:
+        session_id:
+          type: string
+          description: Unguessable handle. Returned only on a new session. Caller MUST persist it.
+        document_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mime_type:
+          type: string
+        byte_size:
+          type: integer
+          format: int64
+        page_count:
+          type: integer
+          nullable: true
+        chunk_count:
+          type: integer
+        ingested_timing_ms:
+          type: object
+          properties:
+            parse_ms: { type: integer }
+            chunk_ms: { type: integer }
+            embed_ms: { type: integer }
+            store_ms: { type: integer }
+            total_ms: { type: integer }
+        ingested_at:
+          type: string
+          format: date-time
+
+    AskRequest:
+      type: object
+      required: [session_id, question]
+      properties:
+        session_id:
+          type: string
+        question:
+          type: string
+          minLength: 1
+          maxLength: 4000
+
+    Citation:
+      type: object
+      required: [chunk_id, document_id, locator, score]
+      properties:
+        chunk_id:
+          type: string
+        document_id:
+          type: string
+          format: uuid
+        locator:
+          type: string
+          description: 'Human-readable: "page 12" (PDF) or "Article 5 > §2" (DOCX).'
+        score:
+          type: number
+          format: float
+
+    HistoryResponse:
+      type: object
+      required: [session_id, turns]
+      properties:
+        session_id:
+          type: string
+        turns:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationTurn"
+
+    ConversationTurn:
+      type: object
+      required: [turn_id, role, content, created_at]
+      properties:
+        turn_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        citations:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/Citation"
+        created_at:
+          type: string
+          format: date-time
+        state:
+          type: string
+          nullable: true
+          enum: [complete, stopped, errored]
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe (unauthenticated).
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /metrics:
+    get:
+      summary: Prometheus exposition (unauthenticated, bind to loopback only).
+      security: []
+      responses:
+        "200":
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /upload:
+    post:
+      summary: Upload a PDF or DOCX. Creates a new session if `X-Session-Id` is absent.
+      parameters:
+        - in: header
+          name: X-Session-Id
+          required: false
+          schema:
+            type: string
+          description: Continue an existing session. Omit to create a new one.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Document ingested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "400":
+          description: Bad request (e.g., empty extracted text).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: X-Session-Id provided but session does not exist (or was ended).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: File exceeds upload cap.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Unsupported file type (not PDF or DOCX).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /ask:
+    post:
+      summary: Ask a question; receive an SSE stream of tokens + citations.
+      description: |
+        Response is `text/event-stream`. Frame types:
+
+        - `event: token`      - data: `{"text": "<delta string>"}`
+        - `event: citations`  - data: `Citation[]` (sent once, before `done`)
+        - `event: done`       - data: `{"turn_id": "<uuid>", "stopped": false}`
+        - `event: error`      - data: `Error` (terminates the stream)
+
+        Each `data:` payload is a single JSON line. Lines are flushed individually.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskRequest"
+      responses:
+        "200":
+          description: SSE stream begins. See description for event types.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Session not found or no document ingested yet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: All provider retries exhausted (after FR-021 budget).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /history/{session_id}:
+    get:
+      summary: Fetch the ordered conversation history for a session.
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: History.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Session not found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /session/end:
+    post:
+      summary: Explicitly end a session. Purges its chunks, vectors, and history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id]
+              properties:
+                session_id:
+                  type: string
+      responses:
+        "204":
+          description: Session ended and purged. Body empty.
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Session not found (treat as already-ended).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
