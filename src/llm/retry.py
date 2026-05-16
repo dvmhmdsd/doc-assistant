@@ -111,3 +111,53 @@ def _before_sleep_factory(provider: str) -> Callable[[object], None]:
         _log.info("retry.attempt", provider=provider)
 
     return _hook
+
+
+async def open_with_retry(
+    provider: str,
+    opener: Callable[[], Awaitable[T]],
+    *,
+    attempts: int = 3,
+    max_wait: float = 2.0,
+    retry_budget_seconds: float = 5.0,
+) -> T:
+    """Open a streaming connection with the project's retry policy.
+
+    The retry decorator above cannot wrap an ``async def f(): yield ...``
+    function because calling such a function returns an async generator
+    synchronously — ``await`` on it raises ``TypeError``. For streaming
+    LLM clients we instead retry only the connection-open step (e.g.,
+    ``manager.__aenter__()``); once the stream is established, iteration
+    errors propagate normally.
+
+    ``opener`` is a zero-arg callable returning an awaitable that resolves
+    to the stream/handle to be consumed.
+    """
+
+    async def _attempt() -> T:
+        async for state in AsyncRetrying(
+            stop=stop_after_attempt(attempts),
+            wait=wait_exponential(multiplier=0.5, max=max_wait),
+            retry=retry_if_exception(_is_transient),
+            reraise=True,
+            before_sleep=_before_sleep_factory(provider),
+        ):
+            with state:
+                return await opener()
+        raise RuntimeError("retry loop exited without value")
+
+    try:
+        return await asyncio.wait_for(_attempt(), timeout=retry_budget_seconds)
+    except asyncio.TimeoutError as exc:
+        _log.warning(
+            "retry.budget_exhausted",
+            provider=provider,
+            budget_seconds=retry_budget_seconds,
+        )
+        raise UpstreamUnavailable(
+            f"{provider} call exceeded {retry_budget_seconds}s retry budget"
+        ) from exc
+    except RetryError as exc:
+        raise UpstreamUnavailable(
+            f"{provider} call failed after {attempts} attempts"
+        ) from exc.last_attempt.exception()
