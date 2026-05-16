@@ -1,39 +1,56 @@
-"""FastAPI application factory wiring error handlers, middleware, and routes."""
+"""FastAPI application factory."""
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+import uuid
+from collections.abc import Awaitable, Callable
+
+import structlog
+from fastapi import FastAPI, Request, Response
 
 from ..observability.logging import configure_logging, get_logger
-from ..observability import metrics
-from .errors import app_exception_handler, AppError
+from .errors import AppError, app_exception_handler
+from .routes.ask import router as ask_router
 from .routes.metrics import router as metrics_router
+from .routes.session import router as session_router
+from .routes.upload import router as upload_router
 
 
 def create_app() -> FastAPI:
     configure_logging()
     log = get_logger("doc-assistant")
 
-    app = FastAPI(title="Doc Assistant")
+    app = FastAPI(title="Doc Assistant", version="0.1.0")
 
-    # Exception handler for AppError
+    # Typed-error → OpenAPI Error schema renderer.
     app.add_exception_handler(AppError, app_exception_handler)
 
-    # Simple middleware to attach request_id
     @app.middleware("http")
-    async def add_request_id(request: Request, call_next):
-        request.state.request_id = request.headers.get("X-Request-Id") or "req-" + __import__("uuid").uuid4().hex
-        log.info("request.start", path=request.url.path, request_id=request.state.request_id)
+    async def request_context(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex
+        request.state.request_id = request_id
+        # Bind the contextvar so every structlog event from this task
+        # auto-includes request_id (FR-022).
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+        log.info("request.start", path=request.url.path, method=request.method)
         response = await call_next(request)
-        log.info("request.end", path=request.url.path, request_id=request.state.request_id, status_code=response.status_code)
+        log.info(
+            "request.end",
+            path=request.url.path,
+            method=request.method,
+            status_code=response.status_code,
+        )
         return response
 
-    # Healthz route
     @app.get("/healthz", include_in_schema=False)
-    async def healthz():
-        return JSONResponse({"status": "ok", "version": "0.1.0"})
+    async def healthz() -> dict:
+        return {"status": "ok", "version": "0.1.0"}
 
-    # Metrics route (mounted under /metrics)
     app.include_router(metrics_router)
+    app.include_router(upload_router)
+    app.include_router(ask_router)
+    app.include_router(session_router)
 
     return app
