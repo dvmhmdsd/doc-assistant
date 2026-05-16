@@ -167,7 +167,7 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T069 Author `README.md` at repo root: project pitch, quickstart command (`docker compose up`), `.env` setup, sample Q&A transcript, links to spec / plan / ADRs.
+- [x] T069 Author `README.md` at repo root: project pitch, quickstart command (`docker compose up`), `.env` setup, sample Q&A transcript, full config reference, architecture map, and links to spec / plan / ADRs.
 - [ ] T070 Create `.github/workflows/ci.yml`: single job that builds the image with `docker compose build` and runs `docker compose run --rm app ruff check .`, `docker compose run --rm app mypy src`, and `docker compose run --rm app pytest --cov=src --cov-fail-under=80`. Runs on push + PR. No host-Python steps.
 - [ ] T071 [P] Run `docker compose run --rm app pytest --cov` and tighten any module < 80 %; record results in `tests/COVERAGE.md` if any deliberate gaps remain (e.g., third-party SDK glue).
 - [ ] T072 [P] Author performance smoke `tests/integration/test_performance_smoke.py`: ingest a 50-page fixture PDF and assert `total_ms < 30000` (SC-001); deterministic-LLM `/ask` asserts first `token` frame within 2 s (SC-002). Marked `@pytest.mark.slow`, excluded from the default `docker compose run --rm app pytest` invocation but included in CI's "nightly" job (defined in T070).
