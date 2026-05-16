@@ -27,8 +27,17 @@ WORKDIR /app
 
 # Install backend deps including dev extras so pytest/ruff/mypy run inside
 # this image via `docker compose run --rm app ...`.
+#
+# Torch is pinned to the CPU wheel index BEFORE installing the rest, so
+# sentence-transformers' transitive `torch` requirement is already
+# satisfied with the CPU build. Without this, pip resolves the default
+# CUDA-bundled torch and pulls ~2 GB of nvidia-* wheels that are dead
+# weight on Apple Silicon / CPU-only hosts and a frequent build-timeout
+# source.
 COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install -e ".[dev]"
+RUN pip install --upgrade pip \
+    && pip install --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install -e ".[dev]"
 
 # Backend source + tests.
 COPY src/ ./src/
