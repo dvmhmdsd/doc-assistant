@@ -1,49 +1,101 @@
-"""Dependency utilities for FastAPI routes: auth, request id, session registry."""
+"""FastAPI dependencies + DI provider functions.
+
+Provider functions are cached singletons (`lru_cache`) so every request
+sees the same vector store, embedder, history store, etc. — required
+for session isolation to actually work (a fresh `SessionService` per
+request would lose every session handle).
+
+All routes mount auth via ``Depends(require_bearer_token)``. Auth
+failures raise typed :class:`UnauthorizedError` so the global
+``app_exception_handler`` renders the OpenAPI ``Error`` schema instead
+of FastAPI's default ``{"detail": ...}``.
+"""
 from __future__ import annotations
 
 import secrets
-import uuid
-from contextvars import ContextVar
-from fastapi import Header, HTTPException
+from functools import lru_cache
 
-from ..config import get_settings
+from fastapi import Header
+
+from ..chunker.chunker import Chunker
+from ..config import Settings, get_settings
+from ..embeddings.base import EmbeddingProvider
+from ..embeddings.factory import make_embedding_provider
+from ..history.base import ConversationStore
+from ..history.memory import InMemoryConversationStore
+from ..llm.base import LLMClient
+from ..llm.factory import make_llm_client
+from ..services.ingestion import IngestionService
+from ..services.qa import QAService
+from ..services.sessions import SessionService
+from ..vector_store.base import VectorStore
+from ..vector_store.chroma import ChromaVectorStore
+from .errors import UnauthorizedError
 
 
-request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
-
-
-def request_id_dep() -> str:
-    rid = str(uuid.uuid4())
-    request_id_ctx.set(rid)
-    return rid
-
+# ---- auth -----------------------------------------------------------
 
 def require_bearer_token(authorization: str | None = Header(None)) -> None:
     settings = get_settings()
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail={"code": "unauthorized", "message": "Missing Authorization header"})
+        raise UnauthorizedError("missing or malformed Authorization header")
     token = authorization.split(None, 1)[1]
     if not secrets.compare_digest(token, settings.app_shared_token):
-        raise HTTPException(status_code=401, detail={"code": "unauthorized", "message": "Invalid token"})
+        raise UnauthorizedError("invalid token")
 
 
-class SessionRegistry:
-    """Placeholder session registry. Implemented later."""
-    def __init__(self):
-        self._store = {}
+# ---- singletons -----------------------------------------------------
+#
+# Each provider is an app-lifetime singleton. `lru_cache(maxsize=1)`
+# makes FastAPI's `Depends(provider_fn)` resolve the same instance on
+# every request without an explicit DI container.
 
-    def create(self, session_id: str):
-        self._store[session_id] = {}
-
-    def exists(self, session_id: str) -> bool:
-        return session_id in self._store
+@lru_cache(maxsize=1)
+def _settings() -> Settings:
+    return get_settings()
 
 
-def get_session_registry() -> SessionRegistry:
-    # Simple per-process registry; services will replace with real implementation
-    global _REG
-    try:
-        return _REG
-    except NameError:
-        _REG = SessionRegistry()
-        return _REG
+@lru_cache(maxsize=1)
+def get_vector_store() -> VectorStore:
+    return ChromaVectorStore(persist_directory=_settings().chroma_persist_dir)
+
+
+@lru_cache(maxsize=1)
+def get_history_store() -> ConversationStore:
+    return InMemoryConversationStore()
+
+
+@lru_cache(maxsize=1)
+def get_embedder() -> EmbeddingProvider:
+    return make_embedding_provider(_settings())
+
+
+@lru_cache(maxsize=1)
+def get_llm_client() -> LLMClient:
+    return make_llm_client(_settings())
+
+
+@lru_cache(maxsize=1)
+def get_chunker() -> Chunker:
+    cfg = _settings()
+    return Chunker(size_tokens=cfg.chunk_size, overlap_tokens=cfg.chunk_overlap)
+
+
+@lru_cache(maxsize=1)
+def get_session_service() -> SessionService:
+    return SessionService(get_vector_store(), get_history_store())
+
+
+@lru_cache(maxsize=1)
+def get_ingestion_service() -> IngestionService:
+    return IngestionService(get_chunker(), get_embedder(), get_vector_store())
+
+
+@lru_cache(maxsize=1)
+def get_qa_service() -> QAService:
+    return QAService(
+        embedder=get_embedder(),
+        vector_store=get_vector_store(),
+        llm=get_llm_client(),
+        history_store=get_history_store(),
+    )
