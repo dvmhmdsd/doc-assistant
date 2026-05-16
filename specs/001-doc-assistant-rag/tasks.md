@@ -126,8 +126,8 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 - [ ] T054 [US2] Integration test `tests/integration/test_history_continuity.py`: two sequential `/ask` calls on the same session; assert the second prompt sent to the LLM stub includes the first turn's user + assistant content (use a `respx`-mocked LLM that records the messages payload).
 - [ ] T055 [US2] Integration test `tests/integration/test_history_endpoint.py`: after two `/ask` calls, `GET /history/{sid}` returns 4 turns (2 user + 2 assistant) in chronological order with `citations` populated on assistant turns; another session's handle returns 404 (cross-session leakage check, FR-018).
-- [ ] T056 [US2] Implement `GET /history/{session_id}` in `src/api/routes/history.py`: validates session ownership via the bearer token (any holder of the token can fetch any session they know the handle for — by design in v1), returns `HistoryResponse` shape from OpenAPI; 404 on missing/ended session.
-- [ ] T057 [US2] In `src/services/qa.py`, ensure `QAService.answer` reads prior turns from `ConversationStore.get(session_id)` and threads them as `ChatMessage`s before the retrieved-context block, preserving role alternation (extend T049 if not already wired).
+- [x] T056 [US2] Implement `GET /history/{session_id}` in `src/api/routes/history.py`: resolves the session via `SessionService.resolve` (raises `NotFoundError` → 404 on missing/ended); returns `HistoryResponse` shape from OpenAPI (`session_id`, `turns[]` with `turn_id`, `role`, `content`, `citations`, `created_at`, `state`). Auth via the shared bearer token.
+- [x] T057 [US2] In `src/services/qa.py`, prior turns are loaded via `ConversationStore.get(session_id)` (capped at 20) and threaded as `ChatMessage`s before the user prompt with retrieved context — covered by the QA rewrite in commit 74da5ad.
 
 **Checkpoint US2**: Multi-turn Q&A works; `/history` route live.
 

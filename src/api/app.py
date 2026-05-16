@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, Response
 from ..observability.logging import configure_logging, get_logger
 from .errors import AppError, app_exception_handler
 from .routes.ask import router as ask_router
+from .routes.history import router as history_router
 from .routes.metrics import router as metrics_router
 from .routes.session import router as session_router
 from .routes.upload import router as upload_router
@@ -52,5 +53,6 @@ def create_app() -> FastAPI:
     app.include_router(upload_router)
     app.include_router(ask_router)
     app.include_router(session_router)
+    app.include_router(history_router)
 
     return app
