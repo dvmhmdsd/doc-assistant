@@ -1,29 +1,38 @@
 # Runtime dependencies
+# Mirror of [project.dependencies] in pyproject.toml. pyproject is the
+# source of truth — the Dockerfile installs via `pip install -e ".[dev]"`.
+# This file exists for tooling that does not speak PEP 621.
+
 fastapi>=0.95
 uvicorn[standard]>=0.22.0
 pydantic>=2.0
-pydantic-settings>=0.6.0
+pydantic-settings>=2.0.0
 python-multipart>=0.0.6
 pymupdf>=1.22.4
 python-docx>=0.8.11
-chromadb>=0.3.30
+chromadb>=0.4.0
 sentence-transformers>=2.2.2
 openai>=1.0.0
-anthropic>=3.0.0
+anthropic>=0.40.0
 tenacity>=8.2.2
 structlog>=22.3.0
 prometheus-client>=0.16.0
 tiktoken>=0.4.0
 httpx>=0.24.0
 
-# Dev / Test utilities
+# Dev / Test
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
 respx>=0.20.0
 pytest-cov>=4.0.0
-ruff>=0.17.0
+ruff>=0.6.0
 mypy>=1.9.0
 
-# Optional: models/backends (install only if needed)
-# sentence-transformers will pull torch; for CPU installs prefer pinned CPU torch wheels
-#torch>=2.2.0
+# Note: sentence-transformers pulls torch transitively. For CPU-only
+# hosts (Apple Silicon, most CI runners), install the CPU wheel first
+# to skip ~2 GB of CUDA wheels:
+#
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch
+#   pip install -r requirements.txt
+#
+# The Dockerfile already does this.
