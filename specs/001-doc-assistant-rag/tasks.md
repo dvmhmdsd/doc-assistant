@@ -140,8 +140,8 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 **Independent Test**: `tests/integration/test_provider_swap.py` parameterised over `(LLM_PROVIDER, EMBEDDING_PROVIDER)` ∈ `{("anthropic","local"), ("openai","local"), ("anthropic","openai"), ("openai","openai")}` — each parameterisation builds a fresh app via `create_app()` with its config and runs an abbreviated US1 happy path against `respx`-mocked providers.
 
 - [ ] T058 [US3] Write `tests/integration/test_provider_swap.py` covering the four matrix cells above; asserts response shape and SSE frame ordering identical across cells.
-- [ ] T059 [US3] Audit `src/services/{ingestion,qa,sessions,prompts}.py` to confirm none of them import provider-specific modules or branch on `cfg.llm_provider` / `cfg.embedding_provider`; refactor any leakage so all selection happens in the factories from T039 and T044.
-- [ ] T060 [US3] Update `.env.example` and add a "Swap providers" section to [quickstart.md](./quickstart.md) §6 confirming the exact env-only restart workflow (no code changes, no rebuild).
+- [x] T059 [US3] Audit `src/services/{ingestion,qa,sessions,prompts}.py` confirmed clean: no `services/*` file imports `openai`, `anthropic`, `sentence_transformers`, or `chromadb`; no branching on `cfg.llm_provider` / `cfg.embedding_provider`. Provider selection lives entirely in `src/llm/factory.py`, `src/embeddings/factory.py`, and `src/api/deps.py` provider functions.
+- [x] T060 [US3] Update `.env.example` and add a "Swap providers" section to [docs/how-to/quickstart.md](../../docs/how-to/quickstart.md) §6 confirming the exact env-only restart workflow (no code changes, no rebuild). `.env.example` updated in commit 714ae23; quickstart §6 already present.
 
 **Checkpoint US3**: SC-005 verifiable from the test matrix; factory boundary holds.
 
@@ -171,7 +171,7 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 - [x] T070 Create `.github/workflows/ci.yml`: single job — `docker/build-push-action` builds the image with GHA cache, then runs `ruff check .`, `mypy src`, and `pytest --cov=src --cov-fail-under=80` inside the image. Runs on push + PR with `concurrency` cancellation. No host-Python steps. Performance smoke (`pytest -m slow`) is gated to push-to-main only.
 - [ ] T071 [P] Run `docker compose run --rm app pytest --cov` and tighten any module < 80 %; record results in `tests/COVERAGE.md` if any deliberate gaps remain (e.g., third-party SDK glue).
 - [ ] T072 [P] Author performance smoke `tests/integration/test_performance_smoke.py`: ingest a 50-page fixture PDF and assert `total_ms < 30000` (SC-001); deterministic-LLM `/ask` asserts first `token` frame within 2 s (SC-002). Marked `@pytest.mark.slow`, excluded from the default `docker compose run --rm app pytest` invocation but included in CI's "nightly" job (defined in T070).
-- [ ] T073 Execute [quickstart.md](./quickstart.md) end-to-end against a freshly-built image; record any deltas in the doc.
+- [x] T073 Execute [docs/how-to/quickstart.md](../../docs/how-to/quickstart.md) end-to-end against a freshly-built image; record any deltas in the doc. Verified: `/healthz` → 200; `/upload` against a 3-page PDF with the default `local` embedding provider returns the full OpenAPI `UploadResponse` (session_id, document_id, byte_size, page_count, chunk_count, ingested_timing_ms, ingested_at). First-call latency dominated by the one-time HuggingFace model download (cached on subsequent runs). T059 audit clean: no `services/*` file imports a provider module or branches on `cfg.llm_provider` / `cfg.embedding_provider`.
 
 ---
 

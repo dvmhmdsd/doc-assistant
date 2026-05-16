@@ -43,14 +43,19 @@ RUN pip install --upgrade pip \
 COPY src/ ./src/
 COPY tests/ ./tests/
 
+# Entrypoint script needs to run as root to chown the (root-mounted)
+# named volumes before dropping to the `app` user via runuser.
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 8000
 
-# Non-root user.
+# Non-root user (entrypoint drops to this via runuser).
 RUN useradd --create-home --uid 1000 app \
     && chown -R app:app /app
-USER app
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()" || exit 1
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

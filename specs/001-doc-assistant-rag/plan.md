@@ -83,7 +83,7 @@ specs/001-doc-assistant-rag/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
+│                       # (quickstart relocated to ../../docs/how-to/quickstart.md)
 ├── contracts/           # Phase 1 output (HTTP API + interface contracts)
 │   ├── openapi.yaml
 │   └── interfaces.md

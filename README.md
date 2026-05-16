@@ -35,7 +35,7 @@ curl -s http://localhost:8000/healthz
 # {"status":"ok","version":"0.1.0"}
 ```
 
-End-to-end smoke (see [specs/001-doc-assistant-rag/quickstart.md](specs/001-doc-assistant-rag/quickstart.md)
+End-to-end smoke (see [docs/how-to/quickstart.md](docs/how-to/quickstart.md)
 for the full runbook):
 
 ```bash
