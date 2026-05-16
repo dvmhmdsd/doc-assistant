@@ -153,14 +153,13 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 **Independent Test**: Open `docs/adr/`; every ADR has Context / Decision / Alternatives / Consequences sections; an index file lists all seven; `grep` finds no `TODO` placeholders.
 
-- [ ] T061 [P] [US4] Author `docs/adr/0001-bespoke-rag-pipeline.md` (custom RAG vs LangChain / LlamaIndex / Haystack) — source: [research.md §R-001](./research.md).
-- [ ] T062 [P] [US4] Author `docs/adr/0002-chromadb-as-vector-store.md` (ChromaDB vs FAISS / Qdrant / Weaviate / SQLite-vss / in-memory) — source: R-002.
-- [ ] T063 [P] [US4] Author `docs/adr/0003-pdf-docx-parser-choices.md` (PyMuPDF + python-docx vs pdfminer / pdfplumber / unstructured / Tika) — source: R-003.
-- [ ] T064 [P] [US4] Author `docs/adr/0004-swappable-llm-embedding-providers.md` (interface-based selection vs LiteLLM-style abstraction or hard-coded provider) — source: R-004.
-- [ ] T065 [P] [US4] Author `docs/adr/0005-sse-streaming-approach.md` (SSE vs WebSocket vs HTTP chunked vs gRPC) — source: R-005.
-- [ ] T066 [P] [US4] Author `docs/adr/0006-react-tailwind-client.md` (React + Tailwind vs vanilla HTML/JS vs HTMX) — source: R-006 and feature 002.
-- [ ] T067 [P] [US4] Author `docs/adr/0007-fastapi-backend-choice.md` (Python + FastAPI vs Node + NestJS / Fastify vs Flask / Django) — source: R-006a.
-- [ ] T068 [US4] Author `docs/adr/README.md` index linking all seven ADRs with one-line summaries; cross-reference FR-014 and SC-007.
+- [x] T061 [P] [US4] Author `docs/adr/0001-bespoke-rag-pipeline.md` (custom RAG vs LangChain / LlamaIndex / Haystack) — source: [research.md §R-001](./research.md).
+- [x] T062 [P] [US4] Author `docs/adr/0002-fastapi-backend-choice.md` (Python + FastAPI vs Node + NestJS / Fastify vs Flask / Django) — source: R-006a.
+- [x] T063 [P] [US4] Author `docs/adr/0003-chromadb-as-vector-store.md` (ChromaDB vs FAISS / Qdrant / Weaviate / SQLite-vss / in-memory) — source: R-002.
+- [x] T064 [P] [US4] Author `docs/adr/0004-pdf-docx-parser-choices.md` (PyMuPDF + python-docx vs pdfminer / pdfplumber / unstructured / Tika) — source: R-003.
+- [x] T065 [P] [US4] Author `docs/adr/0005-swappable-llm-embedding-providers.md` (interface-based selection vs LiteLLM-style abstraction or hard-coded provider) — source: R-004.
+- [x] T066 [P] [US4] Author `docs/adr/0006-sse-streaming-approach.md` (SSE vs WebSocket vs HTTP chunked vs gRPC) — source: R-005.
+- [x] T068 [US4] Author `docs/adr/README.md` index linking all six ADRs with one-line summaries; cross-reference FR-014 and SC-007.
 
 **Checkpoint US4**: SC-007 satisfied; reviewer can find every major decision documented.
 
