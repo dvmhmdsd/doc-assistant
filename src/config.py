@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # --- retrieval / chunking ---
     chunk_size: int = 500
     chunk_overlap: int = 50
-    top_k: int = 5
+    top_k_results: int = 5
 
     # --- uploads ---
     max_upload_bytes: int = 25 * 1024 * 1024

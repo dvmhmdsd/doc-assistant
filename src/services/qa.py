@@ -76,7 +76,7 @@ class QAService:
 
         retrieval_start = time.perf_counter()
         retrieved = await self._store.search(
-            session_id=session_id, query_embedding=q_emb[0], k=self._cfg.top_k
+            session_id=session_id, query_embedding=q_emb[0], k=self._cfg.top_k_results
         )
         retrieval_seconds.observe(time.perf_counter() - retrieval_start)
 
