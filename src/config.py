@@ -1,5 +1,6 @@
-"""Config placeholder matching ProviderConfiguration"""
-from pydantic import BaseSettings
+"""Application settings using pydantic-settings"""
+from functools import lru_cache
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -15,6 +16,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
 
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
+
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    if not s.app_shared_token:
+        raise ValueError("APP_SHARED_TOKEN must be set in environment (.env)")
+    return s
