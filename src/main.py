@@ -1,7 +1,12 @@
-"""Entry point placeholder"""
+"""Uvicorn entrypoint.
 
-def app_info():
-    return {"status": "stub", "version": "0.0.0"}
+Exposes ``app`` so ``uvicorn src.main:app`` (the Dockerfile CMD) resolves to a
+running FastAPI application. As Phase 3 concrete implementations (T040–T053)
+land, additional routes and services will be wired into ``create_app()`` —
+this file stays a thin export.
+"""
+from __future__ import annotations
 
-if __name__ == "__main__":
-    print(app_info())
+from .api.app import create_app
+
+app = create_app()

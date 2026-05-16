@@ -92,7 +92,7 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 - [ ] T033 [P] [US1] Implement `PdfParser` in `src/parsers/pdf.py` using PyMuPDF; one `ParsedSegment` per page with `page_number` set; concatenates text with newline separators and tracks `char_start`/`char_end` accurately.
 - [ ] T034 [P] [US1] Implement `DocxParser` in `src/parsers/docx.py` using `python-docx`; walks paragraphs, maintains a heading stack to build `section_path` (e.g., `"Article 5 > §2"`).
 - [ ] T035 [US1] Implement `parser_for(filename, mime_type)` factory in `src/parsers/factory.py`; raises `UnsupportedMediaType` for anything other than PDF/DOCX (FR-001).
-- [ ] T036 [P] [US1] Implement token-aware `Chunker` in `src/chunker/chunker.py` using `tiktoken`'s `cl100k_base`; chunks across segments while preserving locator metadata; emits `Chunk` per [data-model.md](./data-model.md).
+- [x] T036 [P] [US1] Implement token-aware `Chunker` in `src/chunker/chunker.py` using `tiktoken`'s `cl100k_base`; chunks across segments while preserving locator metadata; emits `Chunk` per [data-model.md](./data-model.md).
 - [ ] T037 [P] [US1] Implement `LocalEmbeddingProvider` in `src/embeddings/local.py` wrapping `sentence-transformers` (`all-MiniLM-L6-v2` default), runs inference in `asyncio.to_thread`.
 - [ ] T038 [P] [US1] Implement `OpenAIEmbeddingProvider` in `src/embeddings/openai.py` using `AsyncOpenAI`; batches inputs in groups of ≤ 100; reuses retry policy from T041.
 - [ ] T039 [US1] Implement `make_embedding_provider(cfg)` in `src/embeddings/factory.py`; validates `OPENAI_API_KEY` when `embedding_provider="openai"`.

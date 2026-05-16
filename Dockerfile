@@ -1,30 +1,15 @@
 # syntax=docker/dockerfile:1.6
 #
-# Multi-stage build for doc-assistant.
-#   Stage 1 (frontend-builder): builds the React + Tailwind SPA (feature 002)
-#     into static assets under /frontend/dist.
-#   Stage 2 (runtime): Python 3.11-slim running the FastAPI app, which serves
-#     /frontend/dist at "/" and exposes the API on the same origin.
+# Backend-only build (Phase 3 in-flight, feature 002 frontend not yet
+# scaffolded). When the React SPA lands under `frontend/`, restore the
+# multi-stage build: a Node 20 `frontend-builder` stage that runs
+# `npm ci && npm run build`, then `COPY --from=frontend-builder
+# /frontend/dist /app/frontend_dist` here. The runtime is otherwise
+# identical to what production will use.
 #
-# Single-image, single-process production target. The test runner ships in
-# the same image:
+# Single-image. Tests ship in this image too:
 #   docker compose run --rm app pytest
 
-# ---------- Stage 1: build the SPA ----------
-FROM node:20-bookworm-slim AS frontend-builder
-
-WORKDIR /frontend
-
-# Install deps first for cache reuse.
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci --no-audit --no-fund
-
-# Build the SPA.
-COPY frontend/ ./
-RUN npm run build
-# Expected output: /frontend/dist (Vite default).
-
-# ---------- Stage 2: runtime ----------
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -32,7 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# System deps for PyMuPDF and sentence-transformers (libgomp). Keep minimal.
+# System deps for PyMuPDF + sentence-transformers (libgomp).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgomp1 \
@@ -41,16 +26,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install backend deps including dev extras so pytest/ruff/mypy run inside
-# this same image via `docker compose run --rm app ...`.
+# this image via `docker compose run --rm app ...`.
 COPY pyproject.toml ./
 RUN pip install --upgrade pip && pip install -e ".[dev]"
 
 # Backend source + tests.
 COPY src/ ./src/
 COPY tests/ ./tests/
-
-# Static SPA assets from the frontend stage.
-COPY --from=frontend-builder /frontend/dist /app/frontend_dist
 
 EXPOSE 8000
 
