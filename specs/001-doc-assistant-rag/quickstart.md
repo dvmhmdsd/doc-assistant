@@ -9,9 +9,8 @@ assistant locally and exercise the API in under 5 minutes (SC-008).
 
 ## 1. Prerequisites
 
-- Docker + Docker Compose (recommended path), OR
-- Python 3.11+ and Node 20+ (manual path, for hacking on backend / frontend
-  separately).
+- Docker + Docker Compose. This is the **only supported run path** for the app —
+  do not invoke `uvicorn` or `npm run dev` directly to start the application.
 
 You will need an Anthropic API key (default LLM provider) or an OpenAI key
 (alternative). Local embeddings need no key.
@@ -57,18 +56,19 @@ docker compose up --build
 ```
 
 App is available at <http://localhost:8000>. The frontend is served at `/`, API
-under the same origin.
+under the same origin. `docker compose up` is the only supported start path —
+all subsequent sections in this document assume the stack is running this way.
 
-(Manual path, two terminals, for hacking:)
+To stop:
 
 ```bash
-# terminal 1 — backend
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn src.main:app --reload --port 8000
+docker compose down
+```
 
-# terminal 2 — frontend (feature 002)
-cd frontend && npm ci && npm run dev
+To rebuild after dependency or Dockerfile changes:
+
+```bash
+docker compose up --build --force-recreate
 ```
 
 ---
@@ -201,12 +201,17 @@ document text.
 
 ## 8. Run the tests
 
+Tests run inside the same Docker image used to run the app — there is no
+separate local Python environment to maintain.
+
 ```bash
-pip install -e ".[dev]"
-pytest                       # full suite (contract + integration + unit)
-pytest tests/contract        # interface contracts
-pytest tests/integration     # full flow incl. streaming
-pytest tests/unit            # parsers, chunker, retry policy
+# full suite (contract + integration + unit)
+docker compose run --rm app pytest
+
+# narrower runs
+docker compose run --rm app pytest tests/contract       # interface contracts
+docker compose run --rm app pytest tests/integration    # full flow incl. streaming
+docker compose run --rm app pytest tests/unit           # parsers, chunker, retry
 ```
 
 Streaming integration test asserts ≥ 2 SSE `token` frames arrived before stream
