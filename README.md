@@ -116,6 +116,14 @@ src/
 | Repository | vector_store, history | Swap storage without touching services |
 | Facade     | services/ingestion, services/qa | Hide multi-step pipelines |
 
+The full architectural explanation lives in
+[docs/explanation/architecture.md](docs/explanation/architecture.md) —
+a Mermaid system-flow diagram, layering table, and dataflow sketches
+for ingest + ask. Request-level [Mermaid sequence diagrams](docs/explanation/sequence-diagrams.md)
+walk through `/upload`, `/ask` (retry + SSE frame ordering),
+`/session/end`, and `/history/{sid}` with the invariants the code
+enforces called out alongside.
+
 ---
 
 ## API
@@ -139,9 +147,16 @@ All endpoints except `/healthz` and `/metrics` require
 
 ## Documentation map
 
+Organised along the [Diataxis](https://diataxis.fr/) pillars:
+
 - **What it does** — this file + [KICKOFF.md](KICKOFF.md).
-- **What was decided and why** — [docs/adr/](docs/adr/) (six ADRs +
-  index).
+- **How to run it** —
+  [docs/how-to/quickstart.md](docs/how-to/quickstart.md) (5-minute
+  bring-up runbook).
+- **How it works (Explanation)** —
+  [docs/explanation/architecture.md](docs/explanation/architecture.md)
+  (system flow + request-level sequence diagrams) and [docs/adr/](docs/adr/)
+  for the six Architecture Decision Records behind every major choice.
 - **Spec → Plan → Tasks** —
   [specs/001-doc-assistant-rag/](specs/001-doc-assistant-rag/).
   The spec is the contract; the plan covers tech context + structure;
