@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ..api.errors import NotFoundError
 from ..history.base import ConversationStore
@@ -37,7 +37,7 @@ class SessionService:
 
     async def create_session(self) -> str:
         handle = secrets.token_urlsafe(32)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         async with self._lock:
             # 256-bit token collision probability is negligible; loop only
             # for absolute safety.
@@ -51,7 +51,7 @@ class SessionService:
             state = self._registry.get(session_id)
             if state is None:
                 raise NotFoundError("session not found")
-            state.last_activity_at = datetime.now(timezone.utc)
+            state.last_activity_at = datetime.now(UTC)
 
     async def end(self, session_id: str) -> None:
         # Remove the registry entry FIRST under the lock so a concurrent

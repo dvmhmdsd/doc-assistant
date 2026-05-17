@@ -21,7 +21,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..api.errors import BadRequest
@@ -87,7 +87,7 @@ class QAService:
         messages.append(ChatMessage(role="user", content=build_user_prompt(question, chunks)))
 
         # Persist the user turn up front so concurrent /history reads are coherent.
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         user_turn = ConversationTurn(
             turn_id=str(uuid.uuid4()),
             session_id=session_id,
@@ -127,7 +127,7 @@ class QAService:
                 )
                 for c, score in retrieved
             ],
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             state="complete",
         )
         await self._history.append(session_id, assistant_turn)

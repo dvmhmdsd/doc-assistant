@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from anthropic import AsyncAnthropic
 import structlog
+from anthropic import AsyncAnthropic
 
 from .base import ChatMessage, LLMClient
 from .retry import open_with_retry

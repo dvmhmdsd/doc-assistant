@@ -37,7 +37,7 @@ class AskRequest(BaseModel):
 
 
 def _sse_frame(event: str, data: object) -> bytes:
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8")
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
 
 
 async def _wrap_stream(events: AsyncIterator[QAEvent]) -> AsyncIterator[bytes]:
@@ -47,7 +47,7 @@ async def _wrap_stream(events: AsyncIterator[QAEvent]) -> AsyncIterator[bytes]:
     except AppError as exc:
         _log.warning("ask.stream_error", code=exc.code, message=exc.message)
         yield _sse_frame("error", {"code": exc.code, "message": exc.message})
-    except Exception as exc:  # noqa: BLE001 - bounded conversion at the stream boundary
+    except Exception:  # noqa: BLE001 - bounded conversion at the stream boundary
         _log.exception("ask.stream_internal_error")
         yield _sse_frame(
             "error",

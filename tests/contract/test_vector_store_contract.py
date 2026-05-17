@@ -7,15 +7,14 @@ fake walk through the same assertions. Add new impls to ``_FACTORIES``.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
 from src.models.chunk import Chunk
 from src.vector_store.base import VectorStore
 from src.vector_store.chroma import ChromaVectorStore
-
 
 # ---- a minimal in-memory fake (cosine similarity) ------------------
 

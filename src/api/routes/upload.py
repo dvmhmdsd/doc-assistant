@@ -12,7 +12,7 @@ import asyncio
 import os
 import tempfile
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Header, UploadFile
@@ -90,7 +90,7 @@ async def upload(
                 "store_ms": result["store_ms"],
                 "total_ms": result["total_ms"],
             },
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
+            "ingested_at": datetime.now(UTC).isoformat(),
         }
     finally:
         with suppress(FileNotFoundError):

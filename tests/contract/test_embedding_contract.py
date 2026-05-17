@@ -18,7 +18,6 @@ import respx
 
 from src.embeddings.base import EmbeddingProvider
 
-
 _OPENAI_URL = "https://api.openai.com/v1/embeddings"
 
 

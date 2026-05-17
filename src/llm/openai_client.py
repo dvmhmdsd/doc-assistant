@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from openai import AsyncOpenAI
 import structlog
+from openai import AsyncOpenAI
 
 from .base import ChatMessage, LLMClient
 from .retry import open_with_retry

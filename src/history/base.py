@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List
 from datetime import datetime
 
 
@@ -20,7 +19,7 @@ class ConversationTurn:
     session_id: str
     role: str  # 'user' | 'assistant'
     content: str
-    citations: List[Citation] | None
+    citations: list[Citation] | None
     created_at: datetime
     state: str | None = None
 
@@ -31,7 +30,7 @@ class ConversationStore(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def get(self, session_id: str) -> List[ConversationTurn]:
+    async def get(self, session_id: str) -> list[ConversationTurn]:
         raise NotImplementedError()
 
     @abstractmethod

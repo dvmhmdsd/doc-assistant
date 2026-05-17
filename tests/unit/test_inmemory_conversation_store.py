@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -10,14 +10,16 @@ from src.history.base import Citation, ConversationTurn
 from src.history.memory import InMemoryConversationStore
 
 
-def _turn(session_id: str, turn_id: str, role: str = "user", *, content: str = "x") -> ConversationTurn:
+def _turn(
+    session_id: str, turn_id: str, role: str = "user", *, content: str = "x"
+) -> ConversationTurn:
     return ConversationTurn(
         turn_id=turn_id,
         session_id=session_id,
         role=role,
         content=content,
         citations=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -99,7 +101,7 @@ async def test_assistant_turn_carries_citations() -> None:
         role="assistant",
         content="answer",
         citations=[cite],
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         state="complete",
     )
     await store.append("s", turn)

@@ -15,7 +15,6 @@ from docx import Document
 from src.api.errors import UnsupportedMediaType
 from src.parsers.factory import parser_for
 
-
 _PDF_MIME = "application/pdf"
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 

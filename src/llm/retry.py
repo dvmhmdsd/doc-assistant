@@ -83,7 +83,7 @@ def retryable(
 
             try:
                 return await asyncio.wait_for(_attempt(), timeout=retry_budget_seconds)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 _log.warning(
                     "retry.budget_exhausted",
                     provider=provider,
@@ -148,7 +148,7 @@ async def open_with_retry(
 
     try:
         return await asyncio.wait_for(_attempt(), timeout=retry_budget_seconds)
-    except asyncio.TimeoutError as exc:
+    except TimeoutError as exc:
         _log.warning(
             "retry.budget_exhausted",
             provider=provider,

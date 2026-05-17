@@ -43,7 +43,9 @@ def stub_st(monkeypatch: pytest.MonkeyPatch) -> type[_StubSentenceTransformer]:
 
 
 @pytest.mark.asyncio
-async def test_embed_preserves_order_and_dimensions(stub_st: type[_StubSentenceTransformer]) -> None:
+async def test_embed_preserves_order_and_dimensions(
+    stub_st: type[_StubSentenceTransformer],
+) -> None:
     from src.embeddings.local import LocalEmbeddingProvider
 
     provider = LocalEmbeddingProvider(model_name="any/stub")
@@ -78,7 +80,9 @@ async def test_embed_batches_to_configured_size(stub_st: type[_StubSentenceTrans
 
 
 @pytest.mark.asyncio
-async def test_dimensions_raises_before_first_embed(stub_st: type[_StubSentenceTransformer]) -> None:
+async def test_dimensions_raises_before_first_embed(
+    stub_st: type[_StubSentenceTransformer],
+) -> None:
     from src.embeddings.local import LocalEmbeddingProvider
 
     provider = LocalEmbeddingProvider(model_name="any/stub")

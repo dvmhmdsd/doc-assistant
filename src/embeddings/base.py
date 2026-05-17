@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
-from dataclasses import dataclass
 
 
 class EmbeddingProvider(ABC):
@@ -17,6 +15,6 @@ class EmbeddingProvider(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def embed(self, texts: List[str]) -> List[List[float]]:
+    async def embed(self, texts: list[str]) -> list[list[float]]:
         """Return embeddings for the input texts, preserving order."""
         raise NotImplementedError()

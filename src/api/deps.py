@@ -32,7 +32,6 @@ from ..vector_store.base import VectorStore
 from ..vector_store.chroma import ChromaVectorStore
 from .errors import UnauthorizedError
 
-
 # ---- auth -----------------------------------------------------------
 
 def require_bearer_token(authorization: str | None = Header(None)) -> None:

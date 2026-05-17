@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from src.history.base import ConversationStore, ConversationTurn
 from src.history.memory import InMemoryConversationStore
-
 
 # Parameterised registry — when additional ConversationStore impls land
 # (e.g., Redis-backed), add them here and the entire suite runs against
@@ -17,14 +16,16 @@ from src.history.memory import InMemoryConversationStore
 _FACTORIES: list[Callable[[], ConversationStore]] = [InMemoryConversationStore]
 
 
-def _turn(session_id: str, turn_id: str, *, role: str = "user", content: str = "x") -> ConversationTurn:
+def _turn(
+    session_id: str, turn_id: str, *, role: str = "user", content: str = "x"
+) -> ConversationTurn:
     return ConversationTurn(
         turn_id=turn_id,
         session_id=session_id,
         role=role,
         content=content,
         citations=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 

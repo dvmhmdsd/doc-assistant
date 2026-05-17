@@ -11,7 +11,6 @@ import tiktoken
 from src.chunker.chunker import Chunker, TiktokenTokenizer
 from src.parsers.base import ParsedSegment
 
-
 _ENC = tiktoken.get_encoding("cl100k_base")
 
 
@@ -90,5 +89,5 @@ def test_tokenizer_recovers_char_spans_for_ascii() -> None:
     # Reconstructing the spans should recover the original string.
     assert "".join(piece for piece, _, _ in spans) == text
     # Char spans monotonic + non-overlapping.
-    for (_, s1, e1), (_, s2, _) in zip(spans, spans[1:], strict=True):
+    for (_, _s1, e1), (_, s2, _) in zip(spans, spans[1:], strict=True):
         assert e1 == s2

@@ -1,5 +1,5 @@
 """Prometheus metrics for the doc assistant."""
-from prometheus_client import CollectorRegistry, Histogram, Counter, generate_latest
+from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
 
 # Use a dedicated registry so tests can import cleanly
 REGISTRY = CollectorRegistry()
