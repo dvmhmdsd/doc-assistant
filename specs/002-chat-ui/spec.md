@@ -15,6 +15,14 @@
 - Q: Client tech stack? → A: React + Tailwind CSS (locked at the spec level; rationale captured in a dedicated ADR).
 - Q: How is the frontend containerized? → A: Production = multi-stage root Dockerfile builds the SPA into static assets served by the backend container at the same origin (no separate production FE service). Dev = optional `frontend-dev` service via the `dev` compose profile (Vite hot-reload, port 5173, proxies to backend). `docker compose up` is the only supported start path.
 
+### Session 2026-05-17
+
+- Q: Composer behavior while assistant answer streaming? → A: Disable composer + send while streaming. Visible "answering…" indicator. Re-enable on stream end / cancel / error. No queue.
+- Q: How does FE deliver `APP_SHARED_TOKEN` to backend? → A: No FE-side auth handling. Backend trusts same-origin requests from the served SPA. Token enforced only for non-browser callers; future production deploy injects the header via a reverse proxy. SPA bundle MUST NOT read, store, or send the token. Tradeoff and threat model captured in a dedicated ADR.
+- Q: Streaming transport for assistant tokens? → A: `fetch` POST + `ReadableStream` reader parsing SSE frames. Cancellation via `AbortController`. No `EventSource`, no WebSocket.
+- Q: Session handle persistence across browser refresh? → A: `sessionStorage` per tab. On load, FE attempts `GET /history/{session_id}` to rehydrate the transcript; on 404 / empty / any error, FE falls back to a fresh empty session and clears the stored handle. Handle dies on tab close.
+- Q: "Start new session" — does FE call backend to drop server-side session? → A: Yes. FE calls a backend session-delete route (`POST /session/end`, idempotent — existing route from feature 001), then clears local transcript + `sessionStorage` handle. Errors on delete do not block the local reset, but are surfaced inline per FR-013.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Upload a document from the UI (Priority: P1)
@@ -101,10 +109,10 @@ The user opens the chat UI on a narrow viewport (laptop split-screen, tablet, or
 
 - User submits an empty question or whitespace-only input → composer rejects it without sending; no transcript pollution.
 - User pastes a very long question (thousands of characters) → composer either accepts it or shows a clear character/length limit; submission does not silently truncate.
-- User sends a second question while the previous answer is still streaming → either the new question is queued (with a clear "waiting" indicator) or the composer is disabled until the prior stream finishes; behavior is consistent and predictable.
+- User sends a second question while the previous answer is still streaming → composer is disabled (per FR-012); send action cannot fire. No queue.
 - Upload of a 25 MB file on a slow connection → progress indicator must keep advancing or show a stalled-state warning; user can cancel.
 - Rapid double-click on send → exactly one question is submitted; no duplicates in transcript.
-- Browser refresh mid-session → user is informed prior in-memory history is lost (or it gracefully re-bootstraps if a session handle is recoverable); no silent partial state.
+- Browser refresh mid-session → SPA reads the session handle from `sessionStorage` and rehydrates via `GET /history/{session_id}`; on miss/error the SPA renders a fresh empty session and clears the stored handle (no silent partial state). An in-flight stream is not resumed — the partial answer is dropped and the composer returns to idle.
 - Copy/paste an assistant answer → copying yields plain text that matches what was rendered (no hidden markup leaks).
 - Very fast streaming (many tokens/sec) → text reflows without flicker or visible jank; CPU does not pin.
 
@@ -123,18 +131,20 @@ The user opens the chat UI on a narrow viewport (laptop split-screen, tablet, or
 - **FR-009**: UI MUST display the first visible answer token within 2 seconds of submission in 95% of attempts under normal load.
 - **FR-010**: UI MUST provide a control to stop/cancel an in-progress answer; cancellation MUST preserve the partial answer in the transcript with a visible "stopped" marker.
 - **FR-011**: UI MUST auto-scroll the transcript to the latest token by default, but MUST NOT yank the view back to the bottom if the user has manually scrolled up; an explicit "jump to latest" affordance MUST appear in that case.
-- **FR-012**: UI MUST disable or queue the composer in a documented, consistent way while a prior answer is streaming, with a visible indicator of the current state.
+- **FR-012**: UI MUST disable the composer (text input + send) while a prior answer is streaming and display a visible "answering…" indicator. The composer MUST re-enable on stream completion, user cancel, or error. The UI MUST NOT queue pending questions.
 - **FR-013**: UI MUST surface all errors (upload, ingestion, question, stream) inline in the chat surface as human-readable messages and MUST NOT expose raw stack traces, provider IDs, or credentials.
 - **FR-014**: UI MUST provide a retry affordance for any failed operation (upload, question, interrupted stream) that does not require the user to re-enter the entire flow.
 - **FR-015**: UI MUST remain usable on viewports as narrow as 600 px without horizontal scrolling and without the composer becoming hidden.
 - **FR-016**: UI MUST meet basic accessibility expectations: every interactive control has a keyboard equivalent, focus state is visible, color is not the sole signal of state, and screen-reader announcements occur for state changes (e.g., "answering", "answer complete", "error").
 - **FR-017**: UI MUST treat the user's input as text-only and MUST escape/render assistant output safely (no execution of HTML/script injected via document content or model output).
-- **FR-018**: UI MUST allow the user to start a fresh session/conversation in one obvious action, clearing the transcript and prompting for a new upload.
+- **FR-018**: UI MUST allow the user to start a fresh session/conversation in one obvious action. The action MUST (a) call the backend session-delete route (`POST /session/end`, idempotent) to free server-side state, (b) clear the local transcript and the `sessionStorage` session handle, and (c) return the UI to the empty upload state. Failure of the backend call MUST NOT block the local reset but MUST surface inline per FR-013.
 - **FR-019**: UI MUST allow the user to copy any single assistant message to the clipboard with a one-click action.
 - **FR-020**: UI MUST be implemented as a React single-page application styled with Tailwind CSS. No alternative client framework (Vue, Svelte, Angular, vanilla DOM, jQuery) is permitted. No alternative styling system (CSS-in-JS, Bootstrap, raw global CSS beyond Tailwind's base layer, ad-hoc inline styles for layout) is permitted; component-level utility classes via Tailwind are the styling mechanism.
 - **FR-022**: Frontend MUST be containerized. The production build MUST be performed inside a multi-stage Docker build at the repository root and the resulting static assets MUST be served by the backend container on the same origin (no separate frontend service in the production compose profile). `docker compose up` MUST be the only documented start path; running `npm run dev` directly on the host MUST NOT appear in the README or quickstart as a supported start path.
 - **FR-023**: A dedicated frontend development container MUST exist (`frontend/Dockerfile.dev`) and be wired into `docker-compose.yml` under a `dev` profile, providing Vite hot-reload (port 5173) that proxies API calls to the backend service over the compose network. The dev container MUST NOT be required to ship the product — it exists only to give developers a hot-reload loop without installing Node on the host.
 - **FR-024**: The frontend container image MUST NOT include any backend secrets at build time. `APP_SHARED_TOKEN` and any provider API keys MUST be supplied to the running backend container via the `.env`/env-file mechanism only and MUST NOT be baked into the FE image, the FE bundle, or any HTML the FE serves.
+- **FR-025**: The SPA MUST NOT read, store, prompt for, or transmit `APP_SHARED_TOKEN`. Browser-originated requests from the same-origin SPA MUST succeed without the FE attaching an `Authorization` header. The backend MUST trust same-origin browser requests; non-browser callers and any future non-co-located deployment MUST inject the token at a reverse proxy or gateway in front of the backend. Tradeoffs and threat model documented in a dedicated ADR.
+- **FR-026**: The SPA MUST consume the assistant streaming endpoint via `fetch` POST and parse SSE frames from a `ReadableStream` reader. In-flight stream cancellation (FR-010) MUST be implemented with `AbortController.abort()`. `EventSource` and WebSocket transports MUST NOT be used for the answer stream.
 
 ### Key Entities
 
@@ -161,7 +171,7 @@ The user opens the chat UI on a narrow viewport (laptop split-screen, tablet, or
 
 - The UI is a browser-based, single-page surface served by the same backend as the underlying assistant. Native mobile, desktop installers, and embeddable widgets are out of scope for this release.
 - One document per session is the supported flow for the initial release (matches the upstream spec). Multi-document selection in the transcript is a future extension.
-- Conversation history is in-memory for the lifetime of the server process (matches the upstream spec). On browser refresh, prior history is lost unless a server-known session handle is preserved client-side.
+- Conversation history is in-memory for the lifetime of the server process (matches the upstream spec). The SPA persists the active session handle in `sessionStorage` (per-tab); on browser refresh it rehydrates the transcript via `GET /history/{session_id}`. On 404 / empty / any error response the SPA falls back to a fresh empty session and clears the stored handle. Closing the tab discards the handle.
 - Visual styling targets a clean, modern, minimal aesthetic — readable typography, neutral palette, high contrast — over heavy branding. Visual design (final palette, spacing scale, exact component variants) is delegated to implementation; this spec governs structure, behavior, and the client tech stack.
 - Client tech stack is locked: React (with TypeScript) for the SPA, Tailwind CSS for styling. The choice supersedes the "minimal HTML/JS" suggestion in KICKOFF.md and is itself a tradeoff (heavier bundle, build pipeline) that MUST be documented in a dedicated ADR.
 - Containerization is locked: the production runtime is a single image (the SPA is built inside the root `Dockerfile`'s `frontend-builder` stage and copied into the FastAPI runtime stage). A separate `frontend-dev` service exists in `docker-compose.yml` under the `dev` profile for hot-reload; it is not a production deliverable. `docker compose up` is the only supported start path (no host-side `npm run dev` or `uvicorn` instructions in the README).
