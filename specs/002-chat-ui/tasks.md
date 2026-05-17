@@ -59,11 +59,11 @@ guardrail. No user story can ship until this phase is green.
 
 ### Backend + container wiring
 
-- [ ] T010 Backend: extend the bearer auth dependency in `src/api/deps.py` to accept unauthenticated requests when `Origin` (or `Referer` fallback) host matches the request's own host. Non-browser callers (no `Origin` and no `Referer`) still require bearer. Add unit tests in `tests/api/test_deps_same_origin.py` covering the four cases (same-origin no bearer = 200; mismatched origin no bearer = 401; no origin no bearer = 401; any origin + valid bearer = 200) — these tests MUST fail first.
+- [~] T010 **DROPPED**: the global bearer auth gate was removed from feature 001 entirely (commit 7f9dc1a on `main`). No `src/api/deps.py` change is needed in this feature. Per-session isolation is enforced server-side by the opaque `session_id` returned from `POST /upload`; routes return 404 for unknown ids via `SessionService.resolve`. ADR-007 captures the threat model.
 - [ ] T011 Backend: mount the SPA via `app.mount("/", StaticFiles(directory=os.environ.get('SPA_DIST_DIR', '/app/frontend_dist'), html=True), name='spa')` in `src/api/app.py`, registered AFTER all API routers so `/upload`, `/ask`, `/history/{id}`, `/session/end`, `/healthz`, `/metrics` take precedence. Add `tests/api/test_static_mount.py` asserting `/` returns `index.html` and `/upload` still routes to the API handler — failing test first.
 - [ ] T012 Extend the root `Dockerfile` `frontend-builder` stage with `WORKDIR /frontend`, `COPY frontend/package*.json ./`, `RUN npm ci --prefer-offline --no-audit --fund=false`, `COPY frontend ./`, `RUN npm run build`. In the runtime stage `COPY --from=frontend-builder /frontend/dist /app/frontend_dist`. No host Node required.
-- [ ] T013 Update `.env.example` to add `# VITE_API_BASE_URL — dev-only proxy target; production SPA serves from same origin (leave empty)` and ensure `APP_SHARED_TOKEN` line documents that the SPA never sends it.
-- [ ] T014 Author `docs/adr/0007-spa-same-origin-auth.md`: context (single-tenant demo), decision (same-origin bypass + bearer for non-browser callers), consequences (no token in bundle; multi-tenant deploy must re-evaluate), alternatives rejected (sessionStorage token, localStorage token, build-time embed, full auth disable).
+- [X] T013 Update `.env.example` to add a `VITE_API_BASE_URL` block describing the dev-only proxy target (production SPA serves from same origin; leave empty). `APP_SHARED_TOKEN` was removed entirely when the global auth gate was dropped (commit 7f9dc1a on `main`); the `auth` section in `.env.example` now documents the new posture instead.
+- [ ] T014 Author `docs/adr/0007-spa-auth-posture.md`: context (single-tenant demo with browser SPA + FastAPI same-origin), decision (no global auth gate; opaque `session_id` from `POST /upload` is the only per-session access control; production deploys front the API with a reverse proxy / API gateway), consequences (no token in bundle or browser memory; unauthenticated callers can mint a session and consume LLM credits — acceptable for demo, blocking for multi-tenant), alternatives rejected (same-origin bypass on the backend, sessionStorage token, localStorage token, build-time embed, HttpOnly cookie bootstrap, per-session JWT).
 
 ### Frontend foundations
 
@@ -78,7 +78,7 @@ guardrail. No user story can ship until this phase is green.
 - [ ] T023 [P] Configure `frontend/vitest.config.ts`: `environment: 'jsdom'`, `globals: false`, `setupFiles: ['./tests/setup.ts']`, `pool: 'threads'`, coverage v8. Create `frontend/tests/setup.ts` that starts/stops the MSW server and registers `@testing-library/jest-dom`.
 - [ ] T024 [P] Add `frontend/scripts/check-bundle-size.mjs` reading `dist/assets/*.{js,css}`, gzipping in-memory, asserting JS ≤ 200 KB and CSS ≤ 100 KB (gzipped). Wire as `npm run analyze` and as a CI step.
 
-**Checkpoint**: `docker compose run --rm app pytest` and `docker compose --profile dev run --rm frontend-dev npm test -- --run` both pass. SPA serves at `http://localhost:8000/` (empty shell, no behavior). Backend accepts SPA calls without a bearer.
+**Checkpoint**: `docker compose run --rm app pytest` and `docker compose --profile dev run --rm frontend-dev npm test -- --run` both pass. SPA serves at `http://localhost:8000/` (empty shell, no behavior). All API calls succeed without any `Authorization` header (no global auth gate in this single-tenant demo).
 
 ---
 
@@ -96,7 +96,7 @@ disabled until "ready".
 - [ ] T025 [P] [US1] Reducer transition test `empty → uploading → ready` plus `uploading → error` in `frontend/tests/unit/state/session.upload.test.ts`. Asserts `sessionStorage` written exactly on success, cleared on `error.previous === empty`.
 - [ ] T026 [P] [US1] Component test for `UploadSurface` in `frontend/tests/unit/components/UploadSurface.test.tsx`: idle render, drag-over visual state, client-side rejection of `.txt` (FR-004), client-side rejection of >25 MB (FR-004), progress indicator visible during upload, "ready" state announced via `aria-live` (FR-002, FR-016).
 - [ ] T027 [P] [US1] Contract test `frontend/tests/contract/upload.test.ts` against MSW handlers: 200 returns `UploadResponse`, 413 surfaces `Error.message`, 415 surfaces `Error.message`, 400 surfaces `Error.message`. Asserts request carries `multipart/form-data` and **no** `Authorization` header.
-- [ ] T028 [P] [US1] Backend integration test `tests/api/test_upload_same_origin.py`: POST `/upload` with `Origin: http://localhost:8000` and no bearer succeeds; with mismatched `Origin` and no bearer = 401. Validates T010's bypass on the real upload route.
+- [~] T028 [P] [US1] **DROPPED** alongside T010 (no global auth gate to test). The cross-session 404 check on `/history` already in 001's T055 covers per-session isolation.
 
 ### Implementation
 
