@@ -1,10 +1,17 @@
-import { useCallback, useReducer, useRef } from "react";
+import { useCallback, useReducer } from "react";
 
-import { uploadDocument } from "./api/upload";
+import { streamAnswer } from "./api/ask";
 import { ApiError } from "./api/client";
+import { uploadDocument } from "./api/upload";
+import { Composer } from "./components/Composer";
+import { Transcript } from "./components/Transcript";
 import { UploadSurface, type UploadSurfaceState } from "./components/UploadSurface";
-import { documentMetaFromUploadResponse, sessionReducer, type SessionState } from "./state/session";
 import { saveSession } from "./state/persistence";
+import {
+  documentMetaFromUploadResponse,
+  sessionReducer,
+  type SessionState,
+} from "./state/session";
 
 const INITIAL_STATE: SessionState = { kind: "empty" };
 
@@ -24,12 +31,10 @@ function uploadSurfaceStateFrom(state: SessionState): UploadSurfaceState {
 
 export default function App(): React.ReactElement {
   const [state, dispatch] = useReducer(sessionReducer, INITIAL_STATE);
-  const abortRef = useRef<AbortController | null>(null);
 
   const onSelect = useCallback(async (file: File): Promise<void> => {
     dispatch({ type: "uploadStarted", filename: file.name });
     const controller = new AbortController();
-    abortRef.current = controller;
     try {
       const resp = await uploadDocument(
         file,
@@ -52,8 +57,6 @@ export default function App(): React.ReactElement {
       let message = "Upload failed.";
       if (err instanceof ApiError || err instanceof Error) message = err.message;
       dispatch({ type: "uploadFailed", message });
-    } finally {
-      abortRef.current = null;
     }
   }, []);
 
@@ -62,9 +65,57 @@ export default function App(): React.ReactElement {
     dispatch({ type: "uploadFailed", message });
   }, []);
 
+  const onAsk = useCallback(
+    async (text: string): Promise<void> => {
+      if (state.kind !== "ready") return;
+      const sessionId = state.sessionId;
+      const controller = new AbortController();
+      dispatch({ type: "submitQuestion", text, controller });
+      try {
+        await streamAnswer(
+          { session_id: sessionId, question: text },
+          (e) => {
+            switch (e.type) {
+              case "token":
+                dispatch({ type: "tokenAppended", text: e.text });
+                return;
+              case "citations":
+                dispatch({ type: "citationsReceived", citations: e.citations });
+                return;
+              case "done":
+                dispatch({ type: "streamDone", turnId: e.turn_id, stopped: e.stopped });
+                return;
+              case "error":
+                dispatch({ type: "streamErrored", message: e.message });
+                return;
+            }
+          },
+          controller.signal,
+        );
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        let message = "Streaming failed.";
+        if (err instanceof ApiError || err instanceof Error) message = err.message;
+        dispatch({ type: "streamErrored", message });
+      }
+    },
+    [state],
+  );
+
+  const onCancel = useCallback((): void => {
+    if (state.kind !== "streaming") return;
+    state.controller.abort();
+    dispatch({ type: "streamCancelled" });
+  }, [state]);
+
+  const isReady = state.kind === "ready";
+  const isStreaming = state.kind === "streaming";
+  const transcript =
+    state.kind === "ready" || state.kind === "streaming" ? state.transcript : [];
+
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-neutral-100">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <main className="min-h-screen bg-neutral-950 p-4 text-neutral-100 md:p-6">
+      <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-3xl flex-col gap-4 md:h-[calc(100vh-3rem)]">
         <header>
           <h1 className="text-2xl font-semibold">Doc Assistant</h1>
           <p className="text-sm text-neutral-400">
@@ -77,6 +128,18 @@ export default function App(): React.ReactElement {
           onSelect={(file) => void onSelect(file)}
           onValidationError={onValidationError}
         />
+
+        {(isReady || isStreaming) && (
+          <>
+            <Transcript turns={transcript} />
+            <Composer
+              disabled={!isReady}
+              streaming={isStreaming}
+              onSubmit={(text) => void onAsk(text)}
+              onCancel={onCancel}
+            />
+          </>
+        )}
       </div>
     </main>
   );

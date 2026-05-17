@@ -4,6 +4,7 @@ import {
   appendUserTurn,
   finalizeTrailingTurn,
   setCitations,
+  startAssistantTurn,
   type Turn,
 } from "./transcript";
 
@@ -120,11 +121,13 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
         warnInvalidTransition(action.type, state.kind);
         return state;
       }
+      // Seed BOTH user turn AND empty assistant turn so streaming token
+      // dispatches can mutate trailing assistant content in place.
       return {
         kind: "streaming",
         sessionId: state.sessionId,
         document: state.document,
-        transcript: appendUserTurn(state.transcript, action.text),
+        transcript: startAssistantTurn(appendUserTurn(state.transcript, action.text)),
         controller: action.controller,
       };
     }
