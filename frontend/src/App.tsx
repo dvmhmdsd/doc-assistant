@@ -1,17 +1,19 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 
 import { streamAnswer } from "./api/ask";
 import { ApiError } from "./api/client";
+import { fetchHistory } from "./api/history";
 import { uploadDocument } from "./api/upload";
 import { Composer } from "./components/Composer";
 import { Transcript } from "./components/Transcript";
 import { UploadSurface, type UploadSurfaceState } from "./components/UploadSurface";
-import { saveSession } from "./state/persistence";
+import { clearSession, loadSession, saveSession } from "./state/persistence";
 import {
   documentMetaFromUploadResponse,
   sessionReducer,
   type SessionState,
 } from "./state/session";
+import type { Turn } from "./state/transcript";
 
 const INITIAL_STATE: SessionState = { kind: "empty" };
 
@@ -32,6 +34,42 @@ function uploadSurfaceStateFrom(state: SessionState): UploadSurfaceState {
 export default function App(): React.ReactElement {
   const [state, dispatch] = useReducer(sessionReducer, INITIAL_STATE);
 
+  useEffect(() => {
+    // US3 rehydration: pick up the previously-persisted session on mount.
+    const persisted = loadSession();
+    if (persisted === null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetchHistory(persisted.sessionId);
+        if (cancelled) return;
+        const transcript: Turn[] = resp.turns.map((t) => ({
+          id: t.turn_id,
+          role: t.role,
+          content: t.content,
+          citations: t.citations ?? null,
+          state: t.state ?? "complete",
+          createdAt: t.created_at,
+        }));
+        dispatch({
+          type: "rehydrated",
+          response: {
+            sessionId: persisted.sessionId,
+            document: persisted.document,
+            transcript,
+          },
+        });
+      } catch {
+        if (cancelled) return;
+        clearSession();
+        dispatch({ type: "rehydrateFailed" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const onSelect = useCallback(async (file: File): Promise<void> => {
     dispatch({ type: "uploadStarted", filename: file.name });
     const controller = new AbortController();
@@ -45,13 +83,11 @@ export default function App(): React.ReactElement {
         },
         controller.signal,
       );
-      saveSession(resp.session_id);
+      const document = documentMetaFromUploadResponse(resp);
+      saveSession({ sessionId: resp.session_id, document });
       dispatch({
         type: "uploadSucceeded",
-        response: {
-          sessionId: resp.session_id,
-          document: documentMetaFromUploadResponse(resp),
-        },
+        response: { sessionId: resp.session_id, document },
       });
     } catch (err) {
       let message = "Upload failed.";

@@ -40,9 +40,11 @@ describe("sessionReducer — upload flow (T025)", () => {
     expect(ready.sessionId).toBe("sid-123");
 
     // Persistence is a side effect performed by the consumer (App.tsx),
-    // not the reducer. Verify the consumer pattern stores the id.
-    saveSession(ready.sessionId);
-    expect(sessionStorage.getItem("doc-assistant.session")).toBe("sid-123");
+    // not the reducer. Verify the consumer pattern stores the payload.
+    saveSession({ sessionId: ready.sessionId, document: ready.document });
+    const raw = sessionStorage.getItem("doc-assistant.session");
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!).sessionId).toBe("sid-123");
   });
 
   it("uploading -> error snapshots previous=empty and leaves storage untouched", () => {

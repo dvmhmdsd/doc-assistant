@@ -151,15 +151,15 @@ rehydrated; Compose composer still works.
 
 ### Tests (write first)
 
-- [ ] T045 [P] [US3] Reducer test `frontend/tests/unit/state/session.multiturn.test.ts`: three submit→stream→done cycles produce six turns (3 user + 3 assistant) in chronological order; `state.kind === "ready"` between each.
-- [ ] T046 [P] [US3] Rehydration contract test `frontend/tests/contract/history.test.ts`: MSW serves `GET /history/:id` with two user + two assistant turns; reducer dispatch `rehydrated` produces a `ready` state with transcript populated and `controller` absent.
-- [ ] T047 [P] [US3] Transcript multi-turn test `frontend/tests/unit/components/Transcript.multiturn.test.tsx`: 20-turn transcript renders without overlap, role markers visible on each (FR-006), no `aria` collisions.
+- [X] T045 [P] [US3] Reducer test `frontend/tests/unit/state/session.multiturn.test.ts`: three submit→stream→done cycles produce six turns (3 user + 3 assistant) in chronological order; `state.kind === "ready"` between each.
+- [X] T046 [P] [US3] Rehydration contract test `frontend/tests/contract/history.test.ts`: MSW serves `GET /history/:id` with two user + two assistant turns; reducer dispatch `rehydrated` produces a `ready` state with transcript populated and `controller` absent. Also covers 404 → typed `ApiError` (sets up T050 rehydrateFailed wiring).
+- [X] T047 [P] [US3] Transcript multi-turn test `frontend/tests/unit/components/Transcript.multiturn.test.tsx`: 20-turn transcript renders in order with role markers on each (FR-006); chronological order preserved regardless of `id` ordering.
 
 ### Implementation
 
-- [ ] T048 [P] [US3] Implement `frontend/src/api/history.ts`: `fetchHistory(sessionId): Promise<HistoryResponse>`. Maps `ConversationTurn[]` to internal `Turn[]` (`role`, `content`, `citations`, `createdAt`, `state = "complete"`, `id = turn_id`).
-- [ ] T049 [P] [US3] Refine `Turn.tsx` + `Transcript.tsx` styling (separation, role pills, timestamps). No new logic.
-- [ ] T050 [US3] In `App.tsx`, on mount: read `loadSession()`; if non-null, call `fetchHistory(id)`; on success dispatch `rehydrated(resp)`; on 404 / network error dispatch `rehydrateFailed` and call `clearSession()`.
+- [X] T048 [P] [US3] Implement `frontend/src/api/history.ts`: `fetchHistory(sessionId): Promise<HistoryResponse>` (typed thin wrapper over `fetchJson` against `/history/{id}`). Wire-to-`Turn[]` mapping lives in the App-level rehydrate effect (T050) where the document meta is also injected from `sessionStorage`.
+- [X] T049 [P] [US3] Refine `Turn.tsx` styling: role pill chip, optional `stopped` / `errored` badges, right-aligned `<time>` element. Transcript spacing already adequate.
+- [X] T050 [US3] In `App.tsx`, on mount: read `loadSession()`; if non-null, call `fetchHistory(id)`; on success dispatch `rehydrated(resp)`; on any failure call `clearSession()` and dispatch `rehydrateFailed`. Persistence now stores `{sessionId, document}` as a JSON blob in `sessionStorage` so rehydration can reconstruct the full `ready` state without a backend roundtrip for the document meta (the history endpoint only returns turns). Legacy bare-string payloads are treated as incompatible and cleared (covered in `persistence.test.ts`).
 
 **Checkpoint**: refresh restores transcript; pronoun-bearing follow-ups land in order.
 
