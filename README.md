@@ -1,32 +1,40 @@
 # Doc Assistant
 
-> RAG-powered Q&A over your own PDF and Word documents. Upload a file,
-> ask questions in plain language, watch the answer stream back with
-> citations to the source passages.
+> RAG-powered Q&A over your own PDF and Word documents. Upload a file
+> in the browser, ask questions in plain language, watch the answer
+> stream back with citations.
 
-A self-contained FastAPI + ChromaDB + (Anthropic or OpenAI) stack with
-a swappable React + Tailwind chat client. Built deliberately without
+FastAPI + ChromaDB + (Anthropic or OpenAI) backend with a React 19 +
+Tailwind 4 SPA bundled into the same image. Built deliberately without
 LangChain / LlamaIndex / Haystack so the OOP + design-pattern layering
 stays readable end to end.
 
 ---
 
-## Quickstart (Docker only)
+## Quickstart
 
-`docker compose up` is the only supported run path. Do not invoke
-`uvicorn` or `npm run dev` directly.
+One command. Docker required.
 
 ```bash
 # 1. Configure
 cp .env.example .env
-$EDITOR .env   # at minimum set an LLM API key
+$EDITOR .env       # set ANTHROPIC_API_KEY (or OPENAI_API_KEY)
 
 # 2. Run
 docker compose up --build
 ```
 
-App available at <http://localhost:8000> (or set `APP_HOST_PORT=8088`
-in env to remap if 8000 is taken by another local service).
+Open **<http://localhost:8000>** in a browser. You see the chat UI:
+
+1. Drag a `.pdf` or `.docx` (≤ 25 MB) onto the upload surface, or click
+   **Choose a file**.
+2. Wait for the "ready" banner.
+3. Type a question, hit **Send**. Answer streams in token-by-token.
+   **Cancel** stops mid-stream; partial answer is preserved.
+
+> Port 8000 already taken on your host? Set `APP_HOST_PORT=8088` (or
+> any free port) in `.env` and re-run. Container always serves on 8000
+> internally; only the host mapping changes.
 
 Healthcheck:
 
@@ -35,9 +43,58 @@ curl -s http://localhost:8000/healthz
 # {"status":"ok","version":"0.1.0"}
 ```
 
-End-to-end smoke (see [docs/how-to/quickstart.md](docs/how-to/quickstart.md)
-for the full runbook and [docs/how-to/sample-queries.md](docs/how-to/sample-queries.md)
-for worked example transcripts including the SSE wire format):
+### Tear down
+
+```bash
+docker compose down            # stop containers
+docker compose down -v         # also wipe Chroma volume + sessions
+```
+
+### Frontend hot-reload (optional)
+
+For SPA development with Vite hot-reload, enable the `dev` compose
+profile. Backend stays on the same port; the dev SPA runs separately
+at <http://localhost:5173> and proxies API calls into the backend
+container.
+
+```bash
+docker compose --profile dev up --build
+# SPA:     http://localhost:5173   (hot reload, source-mounted)
+# Backend: http://localhost:8000   (also serves the production SPA build)
+```
+
+### Tests
+
+```bash
+docker compose run --rm app pytest                              # backend
+docker compose --profile dev run --rm frontend-dev pnpm test -- --run   # frontend
+```
+
+---
+
+## Provider swap
+
+LLM and embedding providers are environment switches. No code change,
+no rebuild — just restart.
+
+```env
+# Defaults
+LLM_PROVIDER=anthropic
+EMBEDDING_PROVIDER=local
+
+# OpenAI for both
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=openai
+```
+
+See [ADR 0005](docs/adr/0005-swappable-llm-embedding-providers.md).
+
+---
+
+## API (alternative to the SPA)
+
+The backend also speaks JSON / SSE directly. Useful for scripted
+ingest or as a sanity check before hitting the SPA.
 
 ```bash
 # Upload
@@ -50,60 +107,54 @@ curl -N -X POST \
   -d "{\"session_id\":\"$SESSION_ID\",\"question\":\"What is the termination notice period?\"}" \
   http://localhost:8000/ask
 
-# End the session (purges chunks + history)
+# End session (purges chunks + history)
 curl -X POST \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SESSION_ID\"}" \
   http://localhost:8000/session/end -i
 ```
 
-Tests run in the same image:
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/upload` | Upload PDF / DOCX; returns `session_id` (or honors `X-Session-Id`). |
+| `POST` | `/ask` | SSE stream: `token` → `citations` → `done` frames. |
+| `GET`  | `/history/{session_id}` | Ordered transcript. |
+| `POST` | `/session/end` | Purge a session. |
+| `GET`  | `/healthz` | Liveness (unauthenticated). |
+| `GET`  | `/metrics` | Prometheus exposition (unauthenticated, loopback). |
 
-```bash
-docker compose run --rm app pytest
-```
+Full OpenAPI:
+[specs/001-doc-assistant-rag/contracts/openapi.yaml](specs/001-doc-assistant-rag/contracts/openapi.yaml).
 
----
-
-## Provider swap
-
-Switching LLM or embedding provider is a `.env` edit + restart. No
-code changes, no rebuild beyond restart.
-
-```env
-# Default
-LLM_PROVIDER=anthropic
-EMBEDDING_PROVIDER=local
-
-# Or: OpenAI for both
-LLM_PROVIDER=openai
-EMBEDDING_PROVIDER=openai
-```
-
-See [ADR 0005](docs/adr/0005-swappable-llm-embedding-providers.md) for
-the design.
+No global auth gate (single-tenant demo). Per-session isolation comes
+from the opaque server-generated `session_id`. Production deploys MUST
+front the API with a reverse proxy / API gateway. ADR-007 captures the
+threat model.
 
 ---
 
 ## Architecture at a glance
 
 ```
-src/
-├── api/                FastAPI app factory, routes, deps, errors
-│   ├── app.py          create_app() — middleware + handler + routes
-│   ├── deps.py         lru_cache DI providers (singletons)
-│   ├── errors.py       AppError hierarchy + handler
-│   └── routes/         upload, ask (SSE), session/end, history, metrics
-├── parsers/            Strategy pattern: PdfParser, DocxParser + factory
-├── chunker/            Token-aware sliding window (tiktoken cl100k_base)
-├── embeddings/         Strategy: Local (sentence-transformers) / OpenAI
-├── vector_store/       Repository: ChromaVectorStore (file-backed)
-├── llm/                Strategy: Anthropic / OpenAI + bounded retry
-├── services/           Facades: ingestion, qa, sessions, prompts
-├── history/            Repository: InMemoryConversationStore
-├── observability/      structlog JSON logs + Prometheus metrics
-├── config.py           pydantic-settings Settings
-└── main.py             `app = create_app()`
+src/                       # FastAPI backend
+├── api/                   FastAPI app factory, routes, deps, errors
+├── parsers/               Strategy: PdfParser, DocxParser + factory
+├── chunker/               Token-aware sliding window (tiktoken cl100k_base)
+├── embeddings/            Strategy: Local (sentence-transformers) / OpenAI
+├── vector_store/          Repository: ChromaVectorStore (file-backed)
+├── llm/                   Strategy: Anthropic / OpenAI + bounded retry
+├── services/              Facades: ingestion, qa, sessions, prompts
+├── history/               Repository: InMemoryConversationStore
+├── observability/         structlog JSON + Prometheus metrics
+└── config.py              pydantic-settings Settings
+
+frontend/                  # React 19 + Tailwind 4 SPA (Vite 8)
+├── src/
+│   ├── api/               typed HTTP + SSE client (no Authorization header)
+│   ├── sse/               eventsource-parser wiring + typed events
+│   ├── state/             useReducer session machine + sessionStorage
+│   └── components/        UploadSurface, Composer, Transcript, Turn, …
+└── tests/                 Vitest 4 + RTL + MSW 2 + streaming gate
 ```
 
 | Pattern    | Where | Why |
@@ -113,37 +164,9 @@ src/
 | Repository | vector_store, history | Swap storage without touching services |
 | Facade     | services/ingestion, services/qa | Hide multi-step pipelines |
 
-The full architectural explanation lives in
-[docs/explanation/architecture.md](docs/explanation/architecture.md) —
-a Mermaid system-flow diagram, layering table, and dataflow sketches
-for ingest + ask. Request-level [Mermaid sequence diagrams](docs/explanation/sequence-diagrams.md)
-walk through `/upload`, `/ask` (retry + SSE frame ordering),
-`/session/end`, and `/history/{sid}` with the invariants the code
-enforces called out alongside.
-
----
-
-## API
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/upload` | Upload a PDF or DOCX; returns a `document_id` (and creates a session if no `X-Session-Id` header). |
-| `POST` | `/ask` | Ask a question; SSE stream of `token` → `citations` → `done` frames. |
-| `GET`  | `/history/{session_id}` | Fetch the ordered transcript for a session. |
-| `POST` | `/session/end` | Purge a session's chunks + history. |
-| `GET`  | `/healthz` | Liveness (unauthenticated). |
-| `GET`  | `/metrics` | Prometheus exposition (unauthenticated, loopback). |
-
-Full OpenAPI:
-[specs/001-doc-assistant-rag/contracts/openapi.yaml](specs/001-doc-assistant-rag/contracts/openapi.yaml).
-
-The API has no global auth gate in this single-tenant demo. Per-session
-isolation is enforced via the opaque `session_id` returned by `POST
-/upload` (server-generated via `secrets.token_urlsafe(32)`, unguessable).
-Clients echo it on every subsequent
-call. Production deploys MUST front the API with a reverse proxy or API
-gateway that enforces authentication. `/healthz` and `/metrics` remain
-unauthenticated by design.
+Deeper dive in
+[docs/explanation/architecture.md](docs/explanation/architecture.md)
+(system flow + Mermaid sequence diagrams).
 
 ---
 
@@ -151,22 +174,18 @@ unauthenticated by design.
 
 Organised along the [Diataxis](https://diataxis.fr/) pillars:
 
-- **What it does** — this file + [KICKOFF.md](KICKOFF.md).
-- **How to run it** —
+- **Run it** — this file +
   [docs/how-to/quickstart.md](docs/how-to/quickstart.md) (5-minute
-  bring-up runbook). [docs/how-to/sample-queries.md](docs/how-to/sample-queries.md)
-  walks the upload → ask (factual / follow-up / "I don't know") →
-  history → end flow with the exact request bodies and SSE frames you
-  should see.
-- **How it works (Explanation)** —
-  [docs/explanation/architecture.md](docs/explanation/architecture.md)
-  (system flow + request-level sequence diagrams) and [docs/adr/](docs/adr/)
-  for the six Architecture Decision Records behind every major choice.
+  runbook) + [docs/how-to/sample-queries.md](docs/how-to/sample-queries.md)
+  (worked transcripts, raw SSE frames).
+- **How it works** —
+  [docs/explanation/architecture.md](docs/explanation/architecture.md),
+  [docs/explanation/sequence-diagrams.md](docs/explanation/sequence-diagrams.md),
+  and [docs/adr/](docs/adr/) for the architecture decision records.
 - **Spec → Plan → Tasks** —
-  [specs/001-doc-assistant-rag/](specs/001-doc-assistant-rag/).
-  The spec is the contract; the plan covers tech context + structure;
-  tasks track work in dependency order.
-- **Project conventions to NOT violate** — [CLAUDE.md](CLAUDE.md).
+  [specs/001-doc-assistant-rag/](specs/001-doc-assistant-rag/) (backend)
+  and [specs/002-chat-ui/](specs/002-chat-ui/) (SPA).
+- **Conventions** — [CLAUDE.md](CLAUDE.md) (paid-for-in-mistakes rules).
 - **Non-negotiable principles** —
   [.specify/memory/constitution.md](.specify/memory/constitution.md).
 
@@ -174,13 +193,13 @@ Organised along the [Diataxis](https://diataxis.fr/) pillars:
 
 ## Configuration reference
 
-Every tunable lives in [`src/config.py:Settings`](src/config.py) and is
-mirrored in [`.env.example`](.env.example).
+Every tunable lives in [`src/config.py:Settings`](src/config.py) and
+is mirrored in [`.env.example`](.env.example).
 
 | Env var | Default | Purpose |
 |---|---|---|
 | `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai`. |
-| `EMBEDDING_PROVIDER` | `local` | `local` (sentence-transformers) or `openai`. |
+| `EMBEDDING_PROVIDER` | `local` | `local` or `openai`. |
 | `ANTHROPIC_API_KEY` | — | Required when `LLM_PROVIDER=anthropic`. |
 | `OPENAI_API_KEY` | — | Required when either provider is `openai`. |
 | `LLM_MODEL` | provider default | e.g. `claude-opus-4-7`. |
@@ -190,21 +209,9 @@ mirrored in [`.env.example`](.env.example).
 | `TOP_K_RESULTS` | `5` | retrieval depth. |
 | `MAX_UPLOAD_BYTES` | `26214400` (25 MiB) | upload cap. |
 | `CHROMA_PERSIST_DIR` | `./chroma_data` | vector store directory. |
-| `UPLOAD_TMP_DIR` | `./uploads_tmp` | temp spool for incoming uploads. |
+| `UPLOAD_TMP_DIR` | `./uploads_tmp` | upload spool. |
 | `RETRY_BUDGET_SECONDS` | `5.0` | wall-clock cap on provider retries. |
-| `RETRY_ATTEMPTS` | `3` | total attempts (1 initial + 2 retries). |
-| `RETRY_MAX_WAIT` | `2.0` | per-attempt exp-backoff cap. |
-
----
-
-## Status
-
-This is feature **001-doc-assistant-rag** plus the Docker scaffolding
-for feature **002-chat-ui**. The React + Tailwind SPA itself is still
-backlogged — the backend serves the API surface but no chat UI is bundled
-yet (production Dockerfile is single-stage backend-only until 002
-lands; multi-stage build returns when the SPA scaffolds).
-
-Tests run via `docker compose run --rm app pytest`. Integration tests
-across the wire are deferred; unit + contract coverage exercises every
-interface implementation directly.
+| `RETRY_ATTEMPTS` | `3` | 1 initial + 2 retries. |
+| `RETRY_MAX_WAIT` | `2.0` | per-attempt backoff cap. |
+| `APP_HOST_PORT` | `8000` | host port mapping (container always 8000). |
+| `VITE_API_BASE_URL` | — | Dev-only: proxy target for `frontend-dev`. |
