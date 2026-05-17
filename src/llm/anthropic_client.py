@@ -8,13 +8,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-import structlog
 from anthropic import AsyncAnthropic
 
 from .base import ChatMessage, LLMClient
 from .retry import open_with_retry
-
-_log = structlog.get_logger(__name__)
 
 
 class AnthropicLLMClient(LLMClient):
@@ -34,8 +31,14 @@ class AnthropicLLMClient(LLMClient):
         return self._model
 
     async def stream_chat(self, messages: list[ChatMessage]) -> AsyncIterator[str]:
-        payload = [{"role": m.role, "content": m.content} for m in messages]
-        manager = self._client.messages.stream(model=self._model, messages=payload)
+        payload: list[dict[str, str]] = [
+            {"role": m.role, "content": m.content} for m in messages
+        ]
+        manager = self._client.messages.stream(
+            model=self._model,
+            messages=payload,  # type: ignore[arg-type]
+            max_tokens=4096,
+        )
 
         # Retry the connection-open only; iteration runs without retry.
         stream = await open_with_retry("anthropic", manager.__aenter__)

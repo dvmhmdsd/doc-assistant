@@ -49,6 +49,13 @@ select = ["E", "F", "I", "B", "UP"]
 python_version = "3.11"
 strict = true
 exclude = "tests/"
+mypy_path = "."
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["chromadb.*", "sentence_transformers.*", "tiktoken.*", "fitz", "fitz.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -7,7 +7,7 @@ request path (constitution Principle IV).
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .base import EmbeddingProvider
 
@@ -57,14 +57,19 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             if cached is not None:
                 return cached
 
-            def _load() -> SentenceTransformer:
+            def _load() -> "SentenceTransformer":
                 from sentence_transformers import SentenceTransformer
 
-                return SentenceTransformer(self._model_name)
+                return cast("SentenceTransformer", SentenceTransformer(self._model_name))
 
             model = await asyncio.to_thread(_load)
             self._model = model
-            self._dimensions = int(model.get_sentence_embedding_dimension())
+            dim = model.get_sentence_embedding_dimension()
+            if dim is None:
+                raise RuntimeError(
+                    f"sentence-transformers model {self._model_name!r} reported no dimension"
+                )
+            self._dimensions = int(dim)
             return model
 
     async def embed(self, texts: list[str]) -> list[list[float]]:

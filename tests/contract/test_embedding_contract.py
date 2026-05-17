@@ -69,7 +69,9 @@ def openai_provider(respx_mock: respx.MockRouter) -> EmbeddingProvider:
     respx_mock.post(_OPENAI_URL).mock(side_effect=_openai_response)
     from src.embeddings.openai_client import OpenAIEmbeddingProvider
 
-    return OpenAIEmbeddingProvider(api_key="sk-test", model_name="text-embedding-3-small")
+    # Use a non-known model name so the provider derives dimensions from the
+    # first response (matches the 4-float stub vectors above).
+    return OpenAIEmbeddingProvider(api_key="sk-test", model_name="stub/embedding-model")
 
 
 # ---- contract suite -------------------------------------------------

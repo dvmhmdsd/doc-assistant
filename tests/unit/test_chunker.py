@@ -49,7 +49,7 @@ def test_chunks_overlap_by_overlap_tokens() -> None:
 
     # Adjacent chunks must share their last `overlap_tokens` of the previous
     # chunk with the first of the next.
-    for prev, curr in zip(chunks, chunks[1:], strict=True):
+    for prev, curr in zip(chunks, chunks[1:], strict=False):
         prev_tail_ids = _ENC.encode(prev.text)[-3:]
         curr_head_ids = _ENC.encode(curr.text)[:3]
         assert prev_tail_ids == curr_head_ids
@@ -89,5 +89,5 @@ def test_tokenizer_recovers_char_spans_for_ascii() -> None:
     # Reconstructing the spans should recover the original string.
     assert "".join(piece for piece, _, _ in spans) == text
     # Char spans monotonic + non-overlapping.
-    for (_, _s1, e1), (_, s2, _) in zip(spans, spans[1:], strict=True):
+    for (_, _s1, e1), (_, s2, _) in zip(spans, spans[1:], strict=False):
         assert e1 == s2

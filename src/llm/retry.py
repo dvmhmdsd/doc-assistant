@@ -73,7 +73,6 @@ def retryable(
                     stop=stop_after_attempt(attempts),
                     wait=wait_exponential(multiplier=0.5, max=max_wait),
                     retry=retry_if_exception(_is_transient),
-                    reraise=True,
                     before_sleep=_before_sleep_factory(provider),
                 ):
                     with state:
@@ -139,7 +138,6 @@ async def open_with_retry(
             stop=stop_after_attempt(attempts),
             wait=wait_exponential(multiplier=0.5, max=max_wait),
             retry=retry_if_exception(_is_transient),
-            reraise=True,
             before_sleep=_before_sleep_factory(provider),
         ):
             with state:
