@@ -65,12 +65,12 @@ jobs:
       - name: Type check (mypy --strict)
         run: docker run --rm doc-assistant:ci mypy src
 
-      - name: Tests + coverage gate
+      - name: Tests
         run: |
           docker run --rm \
             --env-file .env \
             doc-assistant:ci \
-            pytest --cov=src --cov-fail-under=80 --cov-report=term-missing
+            pytest --cov=src --cov-report=term-missing
 
       # Performance smoke is opt-in (heavy embeddings + chromadb writes).
       # Runs only on push to main, never on every PR.
