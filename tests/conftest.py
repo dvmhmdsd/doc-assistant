@@ -7,20 +7,11 @@ those caches automatically around each test. Without this:
 - Integration tests share the same VectorStore / SessionService across
   cases → leaky session state.
 
-Module import resolution: ``pyproject.toml`` sets
-``[tool.pytest.ini_options] pythonpath = ["."]`` for new installs, but
-older pytest binaries baked into the runtime image may not honor that.
-The ``sys.path`` shim below is a belt-and-braces fallback that keeps
-``from src import …`` working regardless of how pytest is invoked.
+Module import resolution (``from src import …``) is handled by
+``pyproject.toml`` (``[tool.pytest.ini_options] pythonpath = ["."]``);
+no ``sys.path`` shim is needed here.
 """
 from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
 
 from collections.abc import Iterator
 

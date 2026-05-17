@@ -57,7 +57,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             if cached is not None:
                 return cached
 
-            def _load() -> "SentenceTransformer":
+            def _load() -> SentenceTransformer:
                 from sentence_transformers import SentenceTransformer
 
                 return cast("SentenceTransformer", SentenceTransformer(self._model_name))
