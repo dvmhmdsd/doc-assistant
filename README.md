@@ -36,7 +36,8 @@ curl -s http://localhost:8000/healthz
 ```
 
 End-to-end smoke (see [docs/how-to/quickstart.md](docs/how-to/quickstart.md)
-for the full runbook):
+for the full runbook and [docs/how-to/sample-queries.md](docs/how-to/sample-queries.md)
+for worked example transcripts including the SSE wire format):
 
 ```bash
 export TOKEN=$(grep APP_SHARED_TOKEN .env | cut -d= -f2)
@@ -152,7 +153,10 @@ Organised along the [Diataxis](https://diataxis.fr/) pillars:
 - **What it does** — this file + [KICKOFF.md](KICKOFF.md).
 - **How to run it** —
   [docs/how-to/quickstart.md](docs/how-to/quickstart.md) (5-minute
-  bring-up runbook).
+  bring-up runbook). [docs/how-to/sample-queries.md](docs/how-to/sample-queries.md)
+  walks the upload → ask (factual / follow-up / "I don't know") →
+  history → end flow with the exact request bodies and SSE frames you
+  should see.
 - **How it works (Explanation)** —
   [docs/explanation/architecture.md](docs/explanation/architecture.md)
   (system flow + request-level sequence diagrams) and [docs/adr/](docs/adr/)
