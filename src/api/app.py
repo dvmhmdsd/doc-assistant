@@ -1,11 +1,13 @@
 """FastAPI application factory."""
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.staticfiles import StaticFiles
 
 from ..observability.logging import configure_logging, get_logger
 from .errors import AppError, app_exception_handler
@@ -54,5 +56,13 @@ def create_app() -> FastAPI:
     app.include_router(ask_router)
     app.include_router(session_router)
     app.include_router(history_router)
+
+    # SPA static mount comes AFTER API routers so API paths take precedence.
+    # Missing dist is non-fatal (e.g., backend-only dev runs) but surfaced.
+    spa_dir = os.environ.get("SPA_DIST_DIR", "/app/frontend_dist")
+    if os.path.isdir(spa_dir):
+        app.mount("/", StaticFiles(directory=spa_dir, html=True), name="spa")
+    else:
+        log.warning("spa.dist.missing", path=spa_dir)
 
     return app

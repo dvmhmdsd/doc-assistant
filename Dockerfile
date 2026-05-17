@@ -10,6 +10,21 @@
 # Single-image. Tests ship in this image too:
 #   docker compose run --rm app pytest
 
+FROM node:20-bullseye AS frontend-builder
+
+WORKDIR /frontend
+
+# pnpm is the project's package manager (pnpm-lock.yaml committed).
+# corepack ships with Node 16+ and provides a pinned pnpm shim without a
+# global npm install.
+RUN corepack enable
+
+# Install frontend dependencies and build the SPA into /frontend/dist.
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend ./
+RUN pnpm run build
+
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -42,6 +57,9 @@ RUN pip install --upgrade pip \
 # Backend source + tests.
 COPY src/ ./src/
 COPY tests/ ./tests/
+
+# Copy built SPA from the frontend-builder stage into the runtime image
+COPY --from=frontend-builder /frontend/dist /app/frontend_dist
 
 # Entrypoint script needs to run as root to chown the (root-mounted)
 # named volumes before dropping to the `app` user via runuser.
