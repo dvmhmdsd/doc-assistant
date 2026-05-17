@@ -38,7 +38,9 @@ def build_user_prompt(question: str, retrieved: Iterable[Chunk]) -> str:
     return "\n".join(parts)
 
 
-def format_citations(chunks_with_scores: Iterable[tuple[Chunk, float]]) -> list[dict]:
+def format_citations(
+    chunks_with_scores: Iterable[tuple[Chunk, float]],
+) -> list[dict[str, object]]:
     """Build the OpenAPI ``Citation`` payload for the SSE ``citations`` frame.
 
     Schema (per ``contracts/openapi.yaml``):

@@ -65,7 +65,7 @@ class ChromaVectorStore(VectorStore):
         await asyncio.to_thread(
             collection.add,
             ids=[c.chunk_id for c in chunks],
-            embeddings=embeddings,
+            embeddings=embeddings,  # type: ignore[arg-type]
             documents=[c.text for c in chunks],
             metadatas=[self._chunk_metadata(c) for c in chunks],
         )
@@ -82,7 +82,7 @@ class ChromaVectorStore(VectorStore):
         collection = await self._collection_for(session_id)
         result = await asyncio.to_thread(
             collection.query,
-            query_embeddings=[query_embedding],
+            query_embeddings=[query_embedding],  # type: ignore[arg-type]
             n_results=k,
             include=["distances", "metadatas", "documents"],
         )
@@ -90,9 +90,15 @@ class ChromaVectorStore(VectorStore):
         ids = result["ids"][0]
         if not ids:
             return []
-        distances = result["distances"][0]
-        metadatas = result["metadatas"][0]
-        documents = result["documents"][0]
+        distances_field = result["distances"]
+        metadatas_field = result["metadatas"]
+        documents_field = result["documents"]
+        assert distances_field is not None
+        assert metadatas_field is not None
+        assert documents_field is not None
+        distances = distances_field[0]
+        metadatas = metadatas_field[0]
+        documents = documents_field[0]
 
         out: list[tuple[Chunk, float]] = []
         for cid, distance, metadata, document in zip(
@@ -103,7 +109,7 @@ class ChromaVectorStore(VectorStore):
             similarity = max(0.0, 1.0 - float(distance))
             out.append(
                 (
-                    self._chunk_from_metadata(session_id, cid, document, metadata),
+                    self._chunk_from_metadata(session_id, cid, document, dict(metadata)),
                     similarity,
                 )
             )

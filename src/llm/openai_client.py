@@ -7,14 +7,12 @@ re-attempt — we cannot replay an in-flight token stream.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
-import structlog
 from openai import AsyncOpenAI
 
 from .base import ChatMessage, LLMClient
 from .retry import open_with_retry
-
-_log = structlog.get_logger(__name__)
 
 
 class OpenAILLMClient(LLMClient):
@@ -34,11 +32,13 @@ class OpenAILLMClient(LLMClient):
         return self._model
 
     async def stream_chat(self, messages: list[ChatMessage]) -> AsyncIterator[str]:
-        payload = [{"role": m.role, "content": m.content} for m in messages]
+        payload: list[dict[str, str]] = [
+            {"role": m.role, "content": m.content} for m in messages
+        ]
 
-        async def _open():
+        async def _open() -> Any:
             return await self._client.chat.completions.create(
-                stream=True, model=self._model, messages=payload
+                stream=True, model=self._model, messages=payload  # type: ignore[arg-type]
             )
 
         stream = await open_with_retry("openai", _open)

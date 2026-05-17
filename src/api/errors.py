@@ -28,11 +28,6 @@ class BadRequest(AppError):
     status_code = 400
 
 
-class UnauthorizedError(AppError):
-    code = "unauthorized"
-    status_code = 401
-
-
 class NotFoundError(AppError):
     code = "not_found"
     status_code = 404

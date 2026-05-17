@@ -23,7 +23,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Doc Assistant", version="0.1.0")
 
     # Typed-error → OpenAPI Error schema renderer.
-    app.add_exception_handler(AppError, app_exception_handler)
+    app.add_exception_handler(AppError, app_exception_handler)  # type: ignore[arg-type]
 
     @app.middleware("http")
     async def request_context(
@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/healthz", include_in_schema=False)
-    async def healthz() -> dict:
+    async def healthz() -> dict[str, str]:
         return {"status": "ok", "version": "0.1.0"}
 
     app.include_router(metrics_router)

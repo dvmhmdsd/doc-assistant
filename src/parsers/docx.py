@@ -8,6 +8,8 @@ is not dropped.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from docx import Document
 from docx.document import Document as _DocumentT
 from docx.oxml.ns import qn
@@ -30,7 +32,7 @@ def _heading_level(paragraph: Paragraph) -> int | None:
     return None
 
 
-def _iter_body_blocks(document: _DocumentT):
+def _iter_body_blocks(document: _DocumentT) -> Iterator[Paragraph | Table]:
     """Yield paragraphs and tables in document order."""
     body = document.element.body
     for child in body.iterchildren():

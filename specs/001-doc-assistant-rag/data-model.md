@@ -136,7 +136,6 @@ A single user question or assistant answer within a Session.
 | `chunk_overlap` | `int` | `CHUNK_OVERLAP` env (default 50) |
 | `top_k` | `int` | `TOP_K_RESULTS` env (default 5) |
 | `max_upload_bytes` | `int` | `MAX_UPLOAD_BYTES` env (default 25 \* 1024 \* 1024) |
-| `shared_token` | `str` (secret) | `APP_SHARED_TOKEN` env |
 | `anthropic_api_key` | `str \| None` (secret) | `ANTHROPIC_API_KEY` env |
 | `openai_api_key` | `str \| None` (secret) | `OPENAI_API_KEY` env |
 
@@ -144,8 +143,9 @@ A single user question or assistant answer within a Session.
 
 - If `llm_provider="anthropic"`, `anthropic_api_key` MUST be set; analogous for OpenAI.
 - If `embedding_provider="openai"`, `openai_api_key` MUST be set.
-- `APP_SHARED_TOKEN` MUST be set (non-empty) at startup. Server refuses to start
-  without it.
+- No global auth secret is required. The single-tenant demo relies on the
+  opaque `session_id` for per-session isolation; production deploys MUST
+  front the API with a reverse proxy / API gateway that enforces auth.
 
 ---
 

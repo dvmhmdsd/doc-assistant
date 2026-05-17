@@ -13,7 +13,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from ...services.sessions import SessionService
-from ..deps import get_session_service, require_bearer_token
+from ..deps import get_session_service
 
 router = APIRouter()
 
@@ -25,7 +25,6 @@ class EndSessionRequest(BaseModel):
 @router.post("/session/end", status_code=204)
 async def end_session(
     body: EndSessionRequest,
-    _auth: Annotated[None, Depends(require_bearer_token)] = None,
     session_svc: Annotated[SessionService, Depends(get_session_service)] = None,  # type: ignore[assignment]
 ) -> Response:
     assert session_svc is not None

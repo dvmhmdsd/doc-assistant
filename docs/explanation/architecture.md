@@ -18,7 +18,6 @@ flowchart LR
     subgraph container["doc-assistant container"]
         subgraph api["FastAPI API layer (src/api)"]
             mw[Request middleware<br/>+ request_id contextvar]
-            authdep[require_bearer_token]
             routes["routes/<br/>upload • ask • history • session/end • metrics"]
             errh[AppError handler<br/>(typed Error schema)]
         end
@@ -53,8 +52,8 @@ flowchart LR
     fs[(file-backed<br/>ChromaDB on volume)]
 
     user --> spa
-    spa -- "HTTPS<br/>Bearer token" --> mw
-    mw --> authdep --> routes
+    spa -- "HTTP<br/>(session_id in body/path)" --> mw
+    mw --> routes
     routes --> errh
     routes -- "/upload"        --> ingest
     routes -- "/ask SSE"       --> qa

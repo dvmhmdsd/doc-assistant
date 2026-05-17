@@ -5,17 +5,15 @@ sees the same vector store, embedder, history store, etc. — required
 for session isolation to actually work (a fresh `SessionService` per
 request would lose every session handle).
 
-All routes mount auth via ``Depends(require_bearer_token)``. Auth
-failures raise typed :class:`UnauthorizedError` so the global
-``app_exception_handler`` renders the OpenAPI ``Error`` schema instead
-of FastAPI's default ``{"detail": ...}``.
+Single-tenant demo: no global auth gate. Per-session isolation is
+enforced via the opaque ``session_id`` returned by ``POST /upload``;
+routes return 404 for unknown ids via ``SessionService.resolve``.
+Production deploys MUST front the API with a reverse proxy / API
+gateway that enforces authentication.
 """
 from __future__ import annotations
 
-import secrets
 from functools import lru_cache
-
-from fastapi import Header
 
 from ..chunker.chunker import Chunker
 from ..config import Settings, get_settings
@@ -30,18 +28,6 @@ from ..services.qa import QAService
 from ..services.sessions import SessionService
 from ..vector_store.base import VectorStore
 from ..vector_store.chroma import ChromaVectorStore
-from .errors import UnauthorizedError
-
-# ---- auth -----------------------------------------------------------
-
-def require_bearer_token(authorization: str | None = Header(None)) -> None:
-    settings = get_settings()
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise UnauthorizedError("missing or malformed Authorization header")
-    token = authorization.split(None, 1)[1]
-    if not secrets.compare_digest(token, settings.app_shared_token):
-        raise UnauthorizedError("invalid token")
-
 
 # ---- singletons -----------------------------------------------------
 #

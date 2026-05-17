@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, File, Header, UploadFile
 from ...config import Settings, get_settings
 from ...services.ingestion import IngestionService
 from ...services.sessions import SessionService
-from ..deps import get_ingestion_service, get_session_service, require_bearer_token
+from ..deps import get_ingestion_service, get_session_service
 from ..errors import PayloadTooLarge
 
 router = APIRouter()
@@ -32,11 +32,10 @@ _CHUNK = 1024 * 1024  # 1 MiB read-buffer for the spool loop
 async def upload(
     file: Annotated[UploadFile, File(...)],
     x_session_id: Annotated[str | None, Header(alias="X-Session-Id")] = None,
-    _auth: Annotated[None, Depends(require_bearer_token)] = None,
     settings: Annotated[Settings, Depends(get_settings)] = None,  # type: ignore[assignment]
     session_svc: Annotated[SessionService, Depends(get_session_service)] = None,  # type: ignore[assignment]
     ingestion_svc: Annotated[IngestionService, Depends(get_ingestion_service)] = None,  # type: ignore[assignment]
-) -> dict:
+) -> dict[str, object]:
     assert settings is not None and session_svc is not None and ingestion_svc is not None
 
     if x_session_id:

@@ -16,7 +16,6 @@ sequenceDiagram
     autonumber
     actor client as Client
     participant api as FastAPI app
-    participant auth as require_bearer_token
     participant sess as SessionService
     participant route as upload route
     participant ingest as IngestionService
@@ -26,11 +25,6 @@ sequenceDiagram
     participant vstore as ChromaVectorStore
 
     client->>api: POST /upload<br/>file=PDF/DOCX<br/>(opt) X-Session-Id
-    api->>auth: validate Bearer token
-    alt token missing / invalid
-        auth-->>client: 401 unauthorized<br/>(typed Error)
-    end
-    auth-->>api: ok
 
     alt X-Session-Id present
         api->>sess: resolve(session_id)
@@ -92,7 +86,6 @@ sequenceDiagram
     autonumber
     actor client as Client
     participant api as FastAPI app
-    participant auth as require_bearer_token
     participant sess as SessionService
     participant route as ask route
     participant qa as QAService
@@ -104,9 +97,7 @@ sequenceDiagram
     participant retry as open_with_retry
     participant prov as Anthropic/OpenAI
 
-    client->>api: POST /ask<br/>{session_id, question}<br/>Bearer token
-    api->>auth: validate
-    auth-->>api: ok
+    client->>api: POST /ask<br/>{session_id, question}
     api->>sess: resolve(session_id)
     sess-->>api: ok / 404
     api->>route: enter handler<br/>(StreamingResponse, text/event-stream)
@@ -179,15 +170,12 @@ sequenceDiagram
     autonumber
     actor client as Client
     participant api as FastAPI app
-    participant auth as require_bearer_token
     participant route as session route
     participant sess as SessionService
     participant vstore as ChromaVectorStore
     participant history as ConversationStore
 
-    client->>api: POST /session/end<br/>{session_id}<br/>Bearer token
-    api->>auth: validate
-    auth-->>api: ok
+    client->>api: POST /session/end<br/>{session_id}
     api->>route: enter handler
     route->>sess: end(session_id)
 
@@ -224,14 +212,11 @@ sequenceDiagram
     autonumber
     actor client as Client
     participant api as FastAPI app
-    participant auth as require_bearer_token
     participant route as history route
     participant sess as SessionService
     participant history as ConversationStore
 
-    client->>api: GET /history/{session_id}<br/>Bearer token
-    api->>auth: validate
-    auth-->>api: ok
+    client->>api: GET /history/{session_id}
     api->>route: enter handler
     route->>sess: resolve(session_id)
     alt missing / ended
@@ -243,10 +228,12 @@ sequenceDiagram
     route-->>client: 200 HistoryResponse<br/>{session_id, turns: [...]}
 ```
 
-The auth model is shared-bearer-token only — anyone holding the token
-AND the session handle can read the transcript. This matches the v1
-posture: a single internal user. Per-user accounts and per-session
-ACLs are deferred (see Q1 / Q2 clarifications in the spec).
+No global auth gate in this single-tenant demo — anyone holding the
+opaque `session_id` can read the transcript. This matches the v1
+posture: a single internal user on a trusted laptop. Production
+deploys MUST front the API with a reverse proxy / API gateway that
+enforces authentication. Per-user accounts and per-session ACLs are
+deferred (see Q1 / Q2 clarifications in the spec).
 
 ---
 
