@@ -13,9 +13,11 @@ FROM node:20-bookworm-slim
 
 WORKDIR /frontend
 
+RUN corepack enable
+
 # Cache deps.
-COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Source mounted at runtime via the compose volume; copy as a fallback so the
 # image builds even when run without a bind mount.
@@ -24,4 +26,4 @@ COPY . .
 EXPOSE 5173
 
 # Vite must bind to 0.0.0.0 to be reachable from the host.
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+CMD ["pnpm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
