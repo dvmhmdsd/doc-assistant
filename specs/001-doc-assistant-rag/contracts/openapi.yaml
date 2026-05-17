@@ -3,22 +3,16 @@ info:
   title: Doc Assistant API
   version: "0.1.0"
   description: |
-    RAG-powered document Q&A. All endpoints (except `/healthz` and `/metrics`)
-    require a bearer token (`APP_SHARED_TOKEN` on the server).
+    RAG-powered document Q&A. Single-tenant demo: no global auth gate.
+    Per-session isolation is enforced via the opaque `session_id` returned
+    by `POST /upload` (server-generated via `secrets.token_urlsafe(32)`, unguessable). Clients
+    echo it on every subsequent call. Production deploys MUST front the
+    API with a reverse proxy / API gateway that enforces authentication.
 servers:
   - url: http://localhost:8000
     description: Local dev
 
-security:
-  - BearerToken: []
-
 components:
-  securitySchemes:
-    BearerToken:
-      type: http
-      scheme: bearer
-      description: Single shared secret loaded from `APP_SHARED_TOKEN`.
-
   schemas:
     Error:
       type: object
@@ -27,7 +21,6 @@ components:
         code:
           type: string
           enum:
-            - unauthorized
             - bad_request
             - unsupported_media_type
             - payload_too_large
@@ -152,8 +145,7 @@ components:
 paths:
   /healthz:
     get:
-      summary: Liveness probe (unauthenticated).
-      security: []
+      summary: Liveness probe.
       responses:
         "200":
           description: OK
@@ -164,8 +156,7 @@ paths:
 
   /metrics:
     get:
-      summary: Prometheus exposition (unauthenticated, bind to loopback only).
-      security: []
+      summary: Prometheus exposition (bind to loopback only).
       responses:
         "200":
           description: Prometheus text format
@@ -204,11 +195,6 @@ paths:
                 $ref: "#/components/schemas/UploadResponse"
         "400":
           description: Bad request (e.g., empty extracted text).
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
-        "401":
-          description: Missing or invalid bearer token.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -258,11 +244,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
         "404":
           description: Session not found or no document ingested yet.
           content:
@@ -290,11 +271,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HistoryResponse"
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
         "404":
           description: Session not found.
           content:
@@ -317,11 +293,6 @@ paths:
       responses:
         "204":
           description: Session ended and purged. Body empty.
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
         "404":
           description: Session not found (treat as already-ended).
           content:

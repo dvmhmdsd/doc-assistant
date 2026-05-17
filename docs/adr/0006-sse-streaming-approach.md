@@ -64,18 +64,17 @@ avoided everywhere else.
 ## Consequences
 
 **Positive.** Native `EventSource` works in every modern browser; the
-React client can also use `fetch` + `ReadableStream` when it needs to
-attach the bearer token (since `EventSource` cannot set custom
-headers). Testing is trivial: `httpx.AsyncClient.stream` exposes the
+React client uses `fetch` + `ReadableStream` instead (chosen for
+cancellation control via `AbortController` — see feature 002).
+Testing is trivial: `httpx.AsyncClient.stream` exposes the
 raw response body line by line, and the `__anext__` /
 `async for` shape of the QA service maps 1:1 to the wire format. The
 explicit `error` frame keeps FR-011 honest — failures are visible in
 the transcript, not invisible disconnections.
 
 **Negative.** `EventSource` cannot set request headers, so the SPA
-will need to use `fetch` + `ReadableStream` (or a small polyfill like
-`fetch-event-source`) for authenticated streams. That is a known
-papercut documented in feature 002's spec, not a blocker. Mid-stream
+uses `fetch` + `ReadableStream` instead. That is a known papercut
+documented in feature 002's spec, not a blocker. Mid-stream
 errors cannot be retried by the framework — the connection has already
 been committed to a 200 OK; our retry policy lives entirely *before*
 the first byte is sent (`open_with_retry` in `src/llm/retry.py`). This

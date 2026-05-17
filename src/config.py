@@ -14,9 +14,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # --- auth ---
-    app_shared_token: str
-
     # --- providers ---
     llm_provider: str = "anthropic"
     embedding_provider: str = "local"
@@ -45,7 +42,4 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    s = Settings()  # type: ignore[call-arg]
-    if not s.app_shared_token:
-        raise ValueError("APP_SHARED_TOKEN must be set in environment (.env)")
-    return s
+    return Settings()

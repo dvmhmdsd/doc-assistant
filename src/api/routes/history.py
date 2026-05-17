@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 
 from ...history.base import ConversationStore
 from ...services.sessions import SessionService
-from ..deps import get_history_store, get_session_service, require_bearer_token
+from ..deps import get_history_store, get_session_service
 
 router = APIRouter()
 
@@ -22,10 +22,9 @@ router = APIRouter()
 @router.get("/history/{session_id}")
 async def get_history(
     session_id: str,
-    _auth: Annotated[None, Depends(require_bearer_token)] = None,
     sessions: Annotated[SessionService, Depends(get_session_service)] = None,  # type: ignore[assignment]
     history: Annotated[ConversationStore, Depends(get_history_store)] = None,  # type: ignore[assignment]
-) -> dict:
+) -> dict[str, object]:
     assert sessions is not None and history is not None
 
     # Will raise NotFoundError → 404 via the global handler if missing/ended.

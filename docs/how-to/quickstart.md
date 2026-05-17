@@ -27,7 +27,6 @@ $EDITOR .env
 Set, at minimum:
 
 ```env
-APP_SHARED_TOKEN=replace-me-with-a-long-random-string
 LLM_PROVIDER=anthropic                # or: openai
 EMBEDDING_PROVIDER=local              # or: openai
 ANTHROPIC_API_KEY=sk-ant-...          # if LLM_PROVIDER=anthropic
@@ -45,7 +44,10 @@ LLM_MODEL=claude-opus-4-7
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ```
 
-The server refuses to start if `APP_SHARED_TOKEN` is empty.
+This single-tenant demo has no global auth gate; per-session isolation
+is enforced server-side via the opaque `session_id` returned by
+`POST /upload`. Production deploys MUST front the API with a reverse
+proxy / API gateway that enforces authentication.
 
 ---
 
@@ -84,13 +86,10 @@ curl -s http://localhost:8000/healthz
 
 ## 5. End-to-end smoke (covers User Story 1 + 2)
 
-Replace `$TOKEN` with the value of `APP_SHARED_TOKEN`.
-
 ### 5.1 Upload a document
 
 ```bash
 RESP=$(curl -s -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -F "file=@sample.pdf" \
   http://localhost:8000/upload)
 echo "$RESP" | jq
@@ -104,7 +103,6 @@ Expected: ingest completes in < 30 s for a 50-page PDF (SC-001) and returns
 
 ```bash
 curl -N -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg sid "$SESSION_ID" --arg q "What is the termination notice period?" \
         '{session_id:$sid, question:$q}')" \
@@ -135,7 +133,6 @@ First `token` frame should arrive in under 2 s (SC-002).
 
 ```bash
 curl -N -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg sid "$SESSION_ID" \
         '{session_id:$sid, question:"Can it be extended?"}')" \
@@ -147,14 +144,13 @@ The answer should resolve "it" against the previous turn.
 ### 5.4 History
 
 ```bash
-curl -s -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/history/$SESSION_ID | jq
+curl -s http://localhost:8000/history/$SESSION_ID | jq
 ```
 
 ### 5.5 End the session (purge)
 
 ```bash
-curl -X POST -H "Authorization: Bearer $TOKEN" \
+curl -X POST \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SESSION_ID\"}" \
   http://localhost:8000/session/end -i
@@ -221,7 +217,7 @@ end (constitution Principle II).
 
 ## 9. Trouble?
 
-- `401 unauthorized` → `Authorization: Bearer $TOKEN` missing or wrong.
+- `404 not_found` on `/ask`, `/history/{sid}`, `/session/end` → `session_id` missing or unknown (never uploaded, or already ended).
 - `413 payload_too_large` → file over `MAX_UPLOAD_BYTES`.
 - `415 unsupported_media_type` → not PDF or DOCX.
 - `400 bad_request` with "not extractable" → likely a scan-only PDF; OCR is out

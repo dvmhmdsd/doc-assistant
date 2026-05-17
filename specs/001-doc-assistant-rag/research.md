@@ -176,16 +176,23 @@ and pre-empts the corresponding ADR in `docs/adr/`.
 - **Alternatives considered**: OpenTelemetry full stack — overkill per Q5
   clarification; plain logging module — fails structured-logs requirement.
 
-## R-010 Authentication — shared bearer token
+## R-010 Authentication — none in v1 (session_id as gate)
 
-- **Decision**: FastAPI dependency `require_token` validates the `Authorization:
-  Bearer <token>` header against `APP_SHARED_TOKEN` from env using
-  `secrets.compare_digest`. Applied to every route except `/healthz`. Missing/invalid
-  token → 401 with a generic body (no leak).
-- **Rationale**: Matches FR-017. Constant-time compare prevents timing oracles.
-- **Alternatives considered**: HTTP Basic — fine but `Authorization: Bearer` is the
-  modern convention and easier for `EventSource` to set via a fetch-EventSource shim
-  in the client.
+- **Decision**: No global auth gate. The single-tenant demo relies on the
+  opaque `session_id` returned by `POST /upload` (server-generated via `secrets.token_urlsafe(32)`,
+  unguessable) as the only per-session access control. Clients echo
+  `session_id` on every subsequent call. Routes that take `session_id`
+  return 404 when the value is missing or unknown (no enumeration leak).
+- **Rationale**: Keeps the demo surface minimal. The original spec called
+  for a shared bearer token; that requirement is dropped because (a) the
+  SPA is served same-origin and cannot safely hold a long-lived secret in
+  a browser, and (b) production deploys MUST front the API with a reverse
+  proxy / API gateway that enforces authentication anyway. No JS-readable
+  secret, no token rotation, no bearer header.
+- **Alternatives considered**: shared bearer token (rejected — pushes
+  secret into the browser bundle or requires an HttpOnly cookie bootstrap
+  that complicates the demo); HttpOnly cookie session (deferred — viable
+  for a follow-up if multi-tenant becomes a requirement).
 
 ## R-011 Session handles and isolation
 

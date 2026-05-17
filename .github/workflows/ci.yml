@@ -30,13 +30,10 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # The Settings class refuses to construct when APP_SHARED_TOKEN is
-      # empty. The token value is irrelevant for tests (everything is
-      # mocked / stubbed) but it MUST be non-empty.
+      # Test env. Provider keys are stubbed; everything is mocked.
       - name: Write CI .env
         run: |
           cat > .env <<'EOF'
-          APP_SHARED_TOKEN=ci-test-token-not-used-anywhere-real
           LLM_PROVIDER=anthropic
           EMBEDDING_PROVIDER=local
           ANTHROPIC_API_KEY=ci-fake-key

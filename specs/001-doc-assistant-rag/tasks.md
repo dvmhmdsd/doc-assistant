@@ -39,21 +39,21 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Cross-cutting infrastructure every user story depends on — config, logging, metrics, errors, auth gate, app factory, `/healthz` + `/metrics` routes.
+**Purpose**: Cross-cutting infrastructure every user story depends on — config, logging, metrics, errors, app factory, `/healthz` + `/metrics` routes.
 
 **⚠️ CRITICAL**: No user-story work begins until this phase is complete.
 
-- [x] T006 Implement `src/config.py` as a `pydantic-settings` `BaseSettings` reading every env var from `.env.example`; refuse to construct when `APP_SHARED_TOKEN` is empty; expose a cached `get_settings()` factory.
-- [x] T007 [P] Implement `src/observability/logging.py`: structlog setup emitting JSON lines, automatic `request_id` injection, processor that redacts known secret keys (`*api_key*`, `authorization`, `app_shared_token`).
+- [x] T006 Implement `src/config.py` as a `pydantic-settings` `BaseSettings` reading every env var from `.env.example`; expose a cached `get_settings()` factory. (Historical: previously required `APP_SHARED_TOKEN`; that field was removed when the global auth gate was dropped.)
+- [x] T007 [P] Implement `src/observability/logging.py`: structlog setup emitting JSON lines, automatic `request_id` injection, processor that redacts known secret keys (`*api_key*`, `authorization`).
 - [x] T008 [P] Implement `src/observability/metrics.py`: Prometheus registry with histograms `doc_assistant_ingest_seconds`, `doc_assistant_retrieval_seconds`, `doc_assistant_time_to_first_token_seconds`, `doc_assistant_stream_total_seconds`, and counter `doc_assistant_provider_retry_total{provider}`.
 - [x] T009 [P] Implement `src/api/errors.py`: typed `AppError` hierarchy + a FastAPI exception handler that renders the OpenAPI `Error` schema; ensure no stack traces leak in bodies.
-- [x] T010 Implement `src/api/deps.py`: `require_bearer_token` (uses `secrets.compare_digest` against `settings.shared_token`), `request_id_dep` (UUID per request, stored in contextvar), `get_session_registry`.
-- [x] T011 Implement `src/api/app.py`: `create_app()` factory that wires the exception handler from T009, adds a middleware applying `request_id` + logging, mounts `/healthz` (unauthenticated) and the routes registered later.
-- [x] T012 [P] Implement `src/api/routes/metrics.py`: `/metrics` route (unauthenticated, loopback-bind in production) returning `generate_latest(REGISTRY)` with `text/plain; version=0.0.4` content type.
-- [x] T013 [P] Write `tests/unit/test_config.py` exercising required-vs-optional env validation (e.g., missing `APP_SHARED_TOKEN` → server refuses to start; selecting `LLM_PROVIDER=openai` without `OPENAI_API_KEY` raises).
-- [x] T014 [P] Write `tests/unit/test_auth_gate.py` covering missing header, malformed header, wrong token, correct token — uses `httpx.AsyncClient(app=create_app())` against a stub-protected route.
+- [x] T010 Implement `src/api/deps.py`: `request_id_dep` (UUID per request, stored in contextvar), `get_session_registry`. (Historical: a `require_bearer_token` dependency lived here when the global auth gate existed; removed alongside `APP_SHARED_TOKEN`.)
+- [x] T011 Implement `src/api/app.py`: `create_app()` factory that wires the exception handler from T009, adds a middleware applying `request_id` + logging, mounts `/healthz` and the routes registered later.
+- [x] T012 [P] Implement `src/api/routes/metrics.py`: `/metrics` route (loopback-bind in production) returning `generate_latest(REGISTRY)` with `text/plain; version=0.0.4` content type.
+- [x] T013 [P] Write `tests/unit/test_config.py` exercising required-vs-optional env validation (e.g., selecting `LLM_PROVIDER=openai` without `OPENAI_API_KEY` raises).
+- [~] T014 [P] **DROPPED**: prior shared-bearer-token gate removed. Per-session isolation is exercised by the `/history` cross-session 404 check in T055.
 
-**Checkpoint**: Auth + observability + app factory in place. User-story work can now start in parallel.
+**Checkpoint**: Observability + app factory in place. User-story work can now start in parallel.
 
 ---
 
@@ -126,7 +126,7 @@ Web-app layout (plan.md Option 2). Backend under `src/`, tests under `tests/`, A
 
 - [ ] T054 [US2] Integration test `tests/integration/test_history_continuity.py`: two sequential `/ask` calls on the same session; assert the second prompt sent to the LLM stub includes the first turn's user + assistant content (use a `respx`-mocked LLM that records the messages payload).
 - [ ] T055 [US2] Integration test `tests/integration/test_history_endpoint.py`: after two `/ask` calls, `GET /history/{sid}` returns 4 turns (2 user + 2 assistant) in chronological order with `citations` populated on assistant turns; another session's handle returns 404 (cross-session leakage check, FR-018).
-- [x] T056 [US2] Implement `GET /history/{session_id}` in `src/api/routes/history.py`: resolves the session via `SessionService.resolve` (raises `NotFoundError` → 404 on missing/ended); returns `HistoryResponse` shape from OpenAPI (`session_id`, `turns[]` with `turn_id`, `role`, `content`, `citations`, `created_at`, `state`). Auth via the shared bearer token.
+- [x] T056 [US2] Implement `GET /history/{session_id}` in `src/api/routes/history.py`: resolves the session via `SessionService.resolve` (raises `NotFoundError` → 404 on missing/ended); returns `HistoryResponse` shape from OpenAPI (`session_id`, `turns[]` with `turn_id`, `role`, `content`, `citations`, `created_at`, `state`). Per-session access via the opaque `session_id` only — no global auth gate.
 - [x] T057 [US2] In `src/services/qa.py`, prior turns are loaded via `ConversationStore.get(session_id)` (capped at 20) and threaded as `ChatMessage`s before the user prompt with retrieved context — covered by the QA rewrite in commit 74da5ad.
 
 **Checkpoint US2**: Multi-turn Q&A works; `/history` route live.

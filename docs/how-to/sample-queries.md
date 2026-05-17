@@ -11,9 +11,13 @@ identical regardless of content.
 
 ```bash
 # Common environment for every block below
-export TOKEN=$(grep '^APP_SHARED_TOKEN=' .env | cut -d= -f2-)
 export BASE=http://localhost:8000          # or 8088 if APP_HOST_PORT is set
 ```
+
+Note: this single-tenant demo has no global auth gate; the opaque
+`session_id` returned by `POST /upload` is the only per-session access
+control. Production deploys MUST front the API with a reverse proxy /
+API gateway that enforces authentication.
 
 ---
 
@@ -21,7 +25,6 @@ export BASE=http://localhost:8000          # or 8088 if APP_HOST_PORT is set
 
 ```bash
 curl -s -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -F "file=@samples/nda.pdf" \
   "$BASE/upload" | jq .
 ```
@@ -69,7 +72,6 @@ SID=NI9j7pGB_s4izZOHYGXYK6S1GfyNgqMzoWpyyhpRJIs
 
 ```bash
 curl -N -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SID\",\"question\":\"What is the termination notice period?\"}" \
   "$BASE/ask"
@@ -130,7 +132,6 @@ Invariants visible:
 
 ```bash
 curl -N -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SID\",\"question\":\"Can it be extended?\"}" \
   "$BASE/ask"
@@ -174,7 +175,6 @@ answer + "Can it be extended?", so the pronoun *it* resolves to the
 
 ```bash
 curl -N -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SID\",\"question\":\"What is the governing jurisdiction's official population?\"}" \
   "$BASE/ask"
@@ -207,7 +207,7 @@ contract) but may be empty.
 ## 5. History — fetch the transcript
 
 ```bash
-curl -s -H "Authorization: Bearer $TOKEN" "$BASE/history/$SID" | jq .
+curl -s "$BASE/history/$SID" | jq .
 ```
 
 ```json
@@ -282,7 +282,6 @@ if the stream was cancelled or hit an error).
 
 ```bash
 curl -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SID\"}" \
   -i "$BASE/session/end"
@@ -323,8 +322,8 @@ correlates the response to the matching log line emitted by
 
 1. Bring up the container: `docker compose up --build`. Wait until
    `curl http://localhost:8000/healthz` returns `200`.
-2. Put a `.env` in place with a real `APP_SHARED_TOKEN` and (for
-   sections 2–4) a real `ANTHROPIC_API_KEY` **or** `OPENAI_API_KEY`.
+2. Put a `.env` in place with (for sections 2–4) a real
+   `ANTHROPIC_API_KEY` **or** `OPENAI_API_KEY`.
    Without one, `/ask` will return the `502 upstream_unavailable`
    error shape from the table above — which is itself a valid sample
    demonstrating FR-021.

@@ -19,7 +19,7 @@ stays readable end to end.
 ```bash
 # 1. Configure
 cp .env.example .env
-$EDITOR .env   # at minimum set APP_SHARED_TOKEN + an LLM API key
+$EDITOR .env   # at minimum set an LLM API key
 
 # 2. Run
 docker compose up --build
@@ -40,22 +40,18 @@ for the full runbook and [docs/how-to/sample-queries.md](docs/how-to/sample-quer
 for worked example transcripts including the SSE wire format):
 
 ```bash
-export TOKEN=$(grep APP_SHARED_TOKEN .env | cut -d= -f2)
-
 # Upload
-RESP=$(curl -s -X POST -H "Authorization: Bearer $TOKEN" \
-  -F "file=@sample.pdf" http://localhost:8000/upload)
+RESP=$(curl -s -X POST -F "file=@sample.pdf" http://localhost:8000/upload)
 SESSION_ID=$(echo "$RESP" | jq -r .session_id)
 
 # Ask (SSE stream)
 curl -N -X POST \
-  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SESSION_ID\",\"question\":\"What is the termination notice period?\"}" \
   http://localhost:8000/ask
 
 # End the session (purges chunks + history)
-curl -X POST -H "Authorization: Bearer $TOKEN" \
+curl -X POST \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":\"$SESSION_ID\"}" \
   http://localhost:8000/session/end -i
@@ -141,8 +137,13 @@ enforces called out alongside.
 Full OpenAPI:
 [specs/001-doc-assistant-rag/contracts/openapi.yaml](specs/001-doc-assistant-rag/contracts/openapi.yaml).
 
-All endpoints except `/healthz` and `/metrics` require
-`Authorization: Bearer <APP_SHARED_TOKEN>`.
+The API has no global auth gate in this single-tenant demo. Per-session
+isolation is enforced via the opaque `session_id` returned by `POST
+/upload` (server-generated via `secrets.token_urlsafe(32)`, unguessable).
+Clients echo it on every subsequent
+call. Production deploys MUST front the API with a reverse proxy or API
+gateway that enforces authentication. `/healthz` and `/metrics` remain
+unauthenticated by design.
 
 ---
 
@@ -174,12 +175,10 @@ Organised along the [Diataxis](https://diataxis.fr/) pillars:
 ## Configuration reference
 
 Every tunable lives in [`src/config.py:Settings`](src/config.py) and is
-mirrored in [`.env.example`](.env.example). The server refuses to start
-if `APP_SHARED_TOKEN` is empty.
+mirrored in [`.env.example`](.env.example).
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `APP_SHARED_TOKEN` | (required) | Bearer token gate for all API calls. |
 | `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai`. |
 | `EMBEDDING_PROVIDER` | `local` | `local` (sentence-transformers) or `openai`. |
 | `ANTHROPIC_API_KEY` | — | Required when `LLM_PROVIDER=anthropic`. |

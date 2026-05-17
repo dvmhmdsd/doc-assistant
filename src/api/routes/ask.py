@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from ...services.qa import QAEvent, QAService
 from ...services.sessions import SessionService
-from ..deps import get_qa_service, get_session_service, require_bearer_token
+from ..deps import get_qa_service, get_session_service
 from ..errors import AppError, BadRequest
 
 router = APIRouter()
@@ -60,7 +60,6 @@ async def _wrap_stream(events: AsyncIterator[QAEvent]) -> AsyncIterator[bytes]:
 @router.post("/ask")
 async def ask(
     body: AskRequest,
-    _auth: Annotated[None, Depends(require_bearer_token)] = None,
     session_svc: Annotated[SessionService, Depends(get_session_service)] = None,  # type: ignore[assignment]
     qa_svc: Annotated[QAService, Depends(get_qa_service)] = None,  # type: ignore[assignment]
 ) -> StreamingResponse:

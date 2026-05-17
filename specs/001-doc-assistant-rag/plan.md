@@ -9,8 +9,9 @@
 Build a self-contained RAG-powered document assistant: a FastAPI service that ingests
 PDF/DOCX files, indexes them in a session-scoped ChromaDB collection, and answers
 natural-language questions via a streamed token feed from a swappable LLM provider
-(Anthropic default, OpenAI alt). Each session is isolated by an unguessable handle,
-gated by a shared bearer token, and persists until the user explicitly ends it. Answers
+(Anthropic default, OpenAI alt). Each session is isolated by an unguessable handle
+and persists until the user explicitly ends it. The single-tenant demo has no
+global auth gate; the opaque `session_id` is the only access control. Answers
 return alongside structured chunk citations. Six ADRs justify the architecture and tool
 choices. A React + Tailwind SPA (feature 002) consumes the API and renders progressive
 SSE streams.
@@ -56,7 +57,8 @@ machine or Docker host bound to `localhost:8000`. No external DB service.
 - All tunables in `src/config.py` from environment; `.env.example` mirrors it.
 - API keys never logged; secrets in env only.
 
-**Scale/Scope**: Single-machine, single-shared-token deployment. Multiple concurrent
+**Scale/Scope**: Single-machine, single-tenant demo deployment with no global
+auth gate (per-session isolation via opaque `session_id`). Multiple concurrent
 sessions, each isolated. Hundreds of documents in aggregate per deployment;
 no horizontal scale or multi-tenancy in v1.
 
@@ -70,7 +72,7 @@ no horizontal scale or multi-tenancy in v1.
 | **II. Test-First Discipline (NON-NEGOTIABLE)** | tasks.md (next phase) will list contract + integration + unit tests BEFORE implementation tasks. Streaming endpoint test asserts ≥ 2 SSE events arrive incrementally (not buffered). Each interface has a contract test that all implementations must pass. |
 | **III. UX Consistency** | Single `/ask` SSE contract regardless of provider; three states (idle / processing / streaming) carried in event types; errors as `event: error` SSE frames with human-readable text. Conversation history forwarded on every follow-up. |
 | **IV. Performance & Streaming Responsiveness** | Async FastAPI endpoints; `anthropic.AsyncAnthropic` + `openai.AsyncOpenAI`; embeddings batched; ChromaDB queries off the event loop via `run_in_threadpool`. Local `/metrics` endpoint exposes the four required timings (FR-023) so SC-001/SC-002 are measurable from one box. |
-| **V. Configuration-Driven Extensibility** | `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `CHUNK_SIZE`, `CHUNK_OVERLAP`, `TOP_K_RESULTS`, `APP_SHARED_TOKEN` all in `src/config.py` + `.env.example`. New provider = implement interface + add factory branch; no service-layer edits. |
+| **V. Configuration-Driven Extensibility** | `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `CHUNK_SIZE`, `CHUNK_OVERLAP`, `TOP_K_RESULTS` all in `src/config.py` + `.env.example`. New provider = implement interface + add factory branch; no service-layer edits. |
 
 **Result**: PASS. No violations. Complexity Tracking table left empty.
 
